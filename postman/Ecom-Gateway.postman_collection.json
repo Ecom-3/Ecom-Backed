@@ -1,0 +1,590 @@
+{
+  "info": {
+    "name": "Ecom Gateway Verification",
+    "description": "Run Core routing, Security and CORS without credentials. Authentication requires an existing valid username/password in the selected environment. All requests go through the gateway. Health checks prove route reachability, not complete business workflows. Legacy unrelated routes are excluded.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 Core routing - no credentials",
+      "item": [
+        {
+          "name": "Gateway health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Org access ping - verifies prefix stripping",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/org-access/api/ping",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Reached org-access\", () => { const b = pm.response.json(); pm.expect(b.service).to.eql(\"org-access\"); pm.expect(b.status).to.eql(\"UP\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "org-access health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/org-access/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "customer-profile health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/customer-profile/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "catalog-service health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/catalog-service/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "inventory-service health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/inventory-service/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "cart-service health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/cart-service/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "cart-api health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/cart-api/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "order-service health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/order-service/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "order-api health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/order-api/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "payment-service health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/payment-service/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "fulfillment-service health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/fulfillment-service/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "fulfillment health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/fulfillment/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "notification-service health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/notification-service/actuator/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Service is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payment capabilities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/payment-service/api/v1/payments/capabilities",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Capabilities response\", () => { const b = pm.response.json(); pm.expect(b.processingEnabled).to.be.a(\"boolean\"); pm.expect(b.reason).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Security and missing routes",
+      "item": [
+        {
+          "name": "Unknown route returns 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/__gateway_route_that_does_not_exist__",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Unknown route is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Profile requires authentication",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/customer-profile/api/v1/profiles/me",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Missing token rejected\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid bearer token rejected",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid-test-token"
+              }
+            ],
+            "url": "{{gateway_url}}/customer-profile/api/v1/profiles/me",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Invalid token rejected\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 CORS",
+      "item": [
+        {
+          "name": "Browser CORS preflight",
+          "request": {
+            "method": "OPTIONS",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{frontend_origin}}"
+              },
+              {
+                "key": "Access-Control-Request-Method",
+                "value": "POST"
+              },
+              {
+                "key": "Access-Control-Request-Headers",
+                "value": "authorization,content-type"
+              }
+            ],
+            "url": "{{gateway_url}}/org-access/api/auth/login",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Preflight accepted\", () => pm.expect(pm.response.code).to.be.oneOf([200,204]));",
+                  "pm.test(\"Origin allowed\", () => pm.expect(pm.response.headers.get(\"Access-Control-Allow-Origin\")).to.eql(pm.environment.get(\"frontend_origin\")));",
+                  "pm.test(\"POST allowed\", () => pm.expect(pm.response.headers.get(\"Access-Control-Allow-Methods\")).to.include(\"POST\"));",
+                  "pm.test(\"Authorization header allowed\", () => pm.expect(pm.response.headers.get(\"Access-Control-Allow-Headers\").toLowerCase()).to.include(\"authorization\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Authentication - requires credentials",
+      "item": [
+        {
+          "name": "Login - saves access_token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gateway_url}}/org-access/api/auth/login",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.unset(\"access_token\");",
+                  "if (!pm.environment.get(\"username\") || !pm.environment.get(\"password\")) throw new Error(\"Set username and password in the selected Postman environment before running Authentication.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Token returned and saved\", () => { const b = pm.response.json(); pm.expect(b.token).to.be.a(\"string\").and.not.empty; if (pm.response.code === 200) pm.environment.set(\"access_token\", b.token); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authenticated me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/org-access/api/auth/me",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Identity authenticated\", () => { const b = pm.response.json(); pm.expect(b.authenticated).to.eql(true); pm.expect(b.username).to.be.a(\"string\").and.not.empty; pm.expect(b.roles).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authenticated validate",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/org-access/api/auth/validate",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Identity authenticated\", () => { const b = pm.response.json(); pm.expect(b.authenticated).to.eql(true); pm.expect(b.username).to.be.a(\"string\").and.not.empty; pm.expect(b.roles).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

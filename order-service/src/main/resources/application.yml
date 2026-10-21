@@ -1,0 +1,69 @@
+server:
+  port: 3311
+
+app:
+  jwt:
+    secret: "${JWT_SECRET:change-this-secret-to-a-long-random-string}"
+    issuer: org-access
+
+spring:
+  application:
+    name: order-service
+
+  config:
+    import: "optional:configserver:http://localhost:8888"
+
+  datasource:
+    url: "jdbc:mysql://localhost:3306/order-service?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+    username: "root"
+    password: "root"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  flyway:
+    enabled: false
+    baseline-on-migrate: true
+
+catalog:
+  service:
+    url: http://localhost:8089
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+sync:
+  service: order-service
+
+  keys:
+    order-service: ${ORDER_SYNC_KEY:}
+    payment-service: ${PAYMENT_SYNC_KEY:}
+    fulfillment-service: ${FULFILLMENT_SYNC_KEY:}
+    inventory-service: ${INVENTORY_SYNC_KEY:}
+
+  targets:
+    payment-service: ${PAYMENT_SERVICE_URL:http://localhost:3314}
+    fulfillment-service: ${FULFILLMENT_SERVICE_URL:http://localhost:3315}
+    notification-service: ${NOTIFICATION_SERVICE_URL:http://localhost:3317}
+    inventory-service: ${INVENTORY_SERVICE_URL:http://localhost:8095}
+
+  routes:
+    order: payment-service,fulfillment-service,notification-service
+    checkout-reservation: inventory-service
