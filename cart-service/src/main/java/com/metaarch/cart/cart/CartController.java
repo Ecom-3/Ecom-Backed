@@ -19,6 +19,8 @@ public class CartController {
   @GetMapping("/{cartId}") public CartResponse get(@PathVariable UUID cartId) { return service.get(cartId); }
   @PreAuthorize("@cartAccess.customer(#customerId)")
   @GetMapping("/active") public CartResponse getActive(@RequestParam UUID customerId, @RequestParam String storeId) { return service.getActive(customerId, storeId); }
+  @PreAuthorize("@cartAccess.customer(#customerId)")
+  @GetMapping("/customer/{customerId}/active") public java.util.List<CartResponse> getActiveCarts(@PathVariable UUID customerId) { return service.getActiveCarts(customerId); }
   @PreAuthorize("@cartAccess.owner(#cartId)")
   @PostMapping("/{cartId}/items") public CartResponse addItem(@PathVariable UUID cartId, @RequestHeader(value="Idempotency-Key", required=false) String key, @Valid @RequestBody AddCartItemRequest request) { return operations.add(cartId, key, request); }
   @PreAuthorize("@cartAccess.owner(#cartId)")

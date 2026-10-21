@@ -22,6 +22,9 @@ public class CartService {
   }
   @Transactional(readOnly = true) public CartResponse get(UUID cartId) { return CartResponse.from(find(cartId)); }
   @Transactional(readOnly = true) public CartResponse getActive(UUID customerId, String storeId) { return CartResponse.from(carts.findWithItemsByCustomerIdAndStoreIdAndStatus(customerId, storeId.trim(), CartStatus.ACTIVE).orElseThrow(() -> new ResourceNotFoundException("Active cart not found"))); }
+  @Transactional(readOnly = true) public List<CartResponse> getActiveCarts(UUID customerId) {
+    return carts.findAllWithItemsByCustomerIdAndStatus(customerId, CartStatus.ACTIVE).stream().map(CartResponse::from).toList();
+  }
   @Transactional public CartResponse addItem(UUID cartId, AddCartItemRequest request) {
     Cart cart = find(cartId); ensureActive(cart);
     CartItem item = cart.getItems().stream().filter(i -> i.getStatus() == CartItemStatus.ACTIVE && i.getProductId().equals(request.productId()) && Objects.equals(i.getVariantId(), request.variantId())).findFirst().orElse(null);

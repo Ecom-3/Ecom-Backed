@@ -10,5 +10,7 @@ public interface CartRepository extends JpaRepository<Cart, UUID> {
   Optional<Cart> findLockedById(@Param("id") UUID id);
   @Query("select distinct c from Cart c left join fetch c.items where c.id = :id") Optional<Cart> findWithItemsById(@Param("id") UUID id);
   @Query("select distinct c from Cart c left join fetch c.items where c.customerId = :customerId and c.storeId = :storeId and c.status = :status") Optional<Cart> findWithItemsByCustomerIdAndStoreIdAndStatus(@Param("customerId") UUID customerId, @Param("storeId") String storeId, @Param("status") CartStatus status);
+  @Query("select distinct c from Cart c left join fetch c.items where c.customerId = :customerId and c.status = :status order by c.createdAt, c.id")
+  List<Cart> findAllWithItemsByCustomerIdAndStatus(@Param("customerId") UUID customerId, @Param("status") CartStatus status);
   boolean existsByCustomerIdAndStoreIdAndStatus(UUID customerId, String storeId, CartStatus status);
 }
