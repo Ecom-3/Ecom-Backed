@@ -22,6 +22,8 @@ public class Notification extends AuditedEntity {
   @Column(name = "source_event_id", unique = true) private UUID sourceEventId;
   @Column(name = "failure_reason", length = 500) private String failureReason;
   @Column(name = "sent_at") private Instant sentAt;
+  @Column(name = "read_at") private Instant readAt;
+  @Column(name = "cleared_at") private Instant clearedAt;
 
   protected Notification() { }
 
@@ -49,7 +51,11 @@ public class Notification extends AuditedEntity {
   public UUID getSourceEventId() { return sourceEventId; }
   public String getFailureReason() { return failureReason; }
   public Instant getSentAt() { return sentAt; }
+  public Instant getReadAt() { return readAt; }
+  public Instant getClearedAt() { return clearedAt; }
   public void markSent(Instant sentAt) { this.status = NotificationStatus.SENT; this.sentAt = sentAt; this.failureReason = null; }
   public void markFailed(String failureReason) { this.status = NotificationStatus.FAILED; this.failureReason = failureReason; }
   public void cancel() { this.status = NotificationStatus.CANCELLED; }
+  public void markRead(Instant readAt) { if (this.readAt == null) this.readAt = readAt; }
+  public void clear(Instant clearedAt) { this.clearedAt = clearedAt; }
 }

@@ -35,5 +35,7 @@ public record CreateOrderRequest(
   boolean freeDeliveryApplied,
   LocalDate scheduledDeliveryDate,
   @Size(max = 80) String scheduledDeliverySlot,
-  @Size(max = 1000) String pickupDetails
+  @Size(max = 1000) String pickupDetails,
+  @Size(max = 64) String couponCode,
+  @Size(max = 150) String promotionLocation
 ) { }

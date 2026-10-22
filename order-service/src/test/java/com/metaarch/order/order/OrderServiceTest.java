@@ -166,6 +166,8 @@ class OrderServiceTest {
       false,
       null,
       null,
+      null,
+      null,
       null);
   }
 
@@ -237,7 +239,9 @@ class OrderServiceTest {
       false,
       null,
       null,
-      "Pickup from SR Nagar Store");
+      "Pickup from SR Nagar Store",
+      null,
+      null);
   }
 
   private CatalogDeliveryQuoteClient.DeliveryQuote snapshotQuote() {

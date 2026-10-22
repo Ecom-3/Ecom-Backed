@@ -71,6 +71,21 @@ public class CatalogDeliveryQuoteClient {
     }
   }
 
+  public CouponPromotion validateCoupon(String code, BigDecimal subtotal, String location, String store) {
+    try {
+      CouponPromotion promotion=restClient.post().uri(baseUrl+"/api/v1/coupons/validate")
+        .body(new CouponValidationRequest(code,subtotal,location,store)).retrieve().body(CouponPromotion.class);
+      if(promotion==null || !promotion.valid()) throw new DeliveryQuoteVerificationException(promotion==null?"Coupon validation is unavailable.":promotion.message());
+      return promotion;
+    } catch(DeliveryQuoteVerificationException ex) { throw ex; }
+      catch(Exception ex) { throw new DeliveryQuoteVerificationException("Coupon validation is unavailable. Please retry.",ex); }
+  }
+
+  public record CouponValidationRequest(String code, BigDecimal subtotal, String location, String store) { }
+  public record CouponPromotion(boolean valid, String message, String code, String couponName,
+      String discountType, BigDecimal discount, BigDecimal maximumDiscount, BigDecimal minimumOrder,
+      BigDecimal discountAmount) { }
+
   public CreateOrderItemRequest verifyItem(String storeId, CreateOrderItemRequest item, boolean global, boolean pickup) {
     if (item.productId() == null || item.quantity() < 1 || item.unitPrice() == null || item.unitPrice().signum() <= 0) {
       throw new DeliveryQuoteVerificationException("Invalid order item.");

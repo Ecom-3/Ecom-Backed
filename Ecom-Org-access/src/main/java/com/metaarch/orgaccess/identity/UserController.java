@@ -6,6 +6,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -19,9 +21,26 @@ public class UserController {
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN','GLOBAL_ADMIN') and hasAuthority('PERM_USER_WRITE')")
+  // The Super Admin role is the explicit authority for staff provisioning in the admin UI.
+  // Keep the role guard here so stale/mismatched supplemental permission grants cannot block
+  // the configured Super Admin account, and cannot authorize a non-admin with USER_WRITE alone.
+  @PreAuthorize("hasRole('SUPER_ADMIN')")
   public UserSummary create(@Valid @RequestBody UserCreateRequest request, Authentication authentication) {
     UserAccount user = identities.create(request, authentication.getName());
+    return new UserSummary(user.getId(), user.getUsername(), user.getEmail());
+  }
+
+  @GetMapping
+  @PreAuthorize("hasRole('SUPER_ADMIN')")
+  public java.util.List<IdentityService.StaffSummary> list(Authentication authentication) {
+    return identities.listStaff(authentication.getName());
+  }
+
+  @PutMapping("/{id}")
+  @PreAuthorize("hasRole('SUPER_ADMIN')")
+  public UserSummary update(@PathVariable Long id, @Valid @RequestBody UserUpdateRequest request,
+      Authentication authentication) {
+    UserAccount user = identities.updateStaff(id, request, authentication.getName());
     return new UserSummary(user.getId(), user.getUsername(), user.getEmail());
   }
 

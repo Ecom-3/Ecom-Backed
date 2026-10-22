@@ -12,7 +12,8 @@ public record OrderResponse(
   BigDecimal storeLatitude, BigDecimal storeLongitude, String deliveryMethod, String fulfillmentType, String globalApproval, BigDecimal deliveryCharge,
   Integer estimatedDeliveryMin, Integer estimatedDeliveryMax, BigDecimal freeDeliveryAbove, boolean freeDeliveryApplied,
   LocalDate scheduledDeliveryDate, String scheduledDeliverySlot, String pickupDetails,
-  String orderNumber, OrderStatus status, BigDecimal totalAmount, BigDecimal handlingFee, PaymentStatus paymentStatus,
+  String orderNumber, OrderStatus status, BigDecimal totalAmount, BigDecimal handlingFee,
+  String couponCode, BigDecimal discountAmount, PaymentStatus paymentStatus,
   List<OrderItemResponse> items, List<OrderAddressResponse> addresses, Instant createdAt, Instant updatedAt) {
   static OrderResponse from(Order order) {
     return new OrderResponse(
@@ -45,6 +46,8 @@ public record OrderResponse(
       order.getStatus(),
       order.getTotalAmount(),
       order.getHandlingFee(),
+      order.getCouponCode(),
+      order.getDiscountAmount(),
       order.getPaymentStatus(),
       order.getItems().stream().map(OrderItemResponse::from).toList(),
       order.getAddresses().stream().map(OrderAddressResponse::from).toList(),

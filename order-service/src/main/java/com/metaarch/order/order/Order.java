@@ -41,6 +41,8 @@ public class Order extends AuditedEntity {
   @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.VARCHAR) @Column(nullable = false, length = 30) private OrderStatus status;
   @Column(name = "total_amount", nullable = false, precision = 19, scale = 2) private BigDecimal totalAmount = BigDecimal.ZERO;
   @Column(name = "handling_fee", nullable = false, precision = 10, scale = 2) private BigDecimal handlingFee = BigDecimal.ZERO;
+  @Column(name = "coupon_code", length = 64) private String couponCode;
+  @Column(name = "discount_amount", nullable = false, precision = 10, scale = 2) private BigDecimal discountAmount = BigDecimal.ZERO;
   @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.VARCHAR) @Column(name = "payment_status", nullable = false, length = 30) private PaymentStatus paymentStatus;
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true) private List<OrderItem> items = new ArrayList<>();
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true) private List<OrderAddress> addresses = new ArrayList<>();
@@ -110,6 +112,10 @@ public class Order extends AuditedEntity {
   public BigDecimal getTotalAmount() { return totalAmount; }
   public BigDecimal getHandlingFee() { return handlingFee; }
   public void setHandlingFee(BigDecimal handlingFee) { this.handlingFee = handlingFee; }
+  public String getCouponCode() { return couponCode; }
+  public void setCouponCode(String couponCode) { this.couponCode = couponCode; }
+  public BigDecimal getDiscountAmount() { return discountAmount; }
+  public void setDiscountAmount(BigDecimal discountAmount) { this.discountAmount = discountAmount; }
   public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
   public PaymentStatus getPaymentStatus() { return paymentStatus; }
   public void setPaymentStatus(PaymentStatus paymentStatus) { this.paymentStatus = paymentStatus; }

@@ -5,6 +5,8 @@ import com.metaarch.orgaccess.audit.AuditLogRepository;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -72,23 +74,30 @@ public class IdentityService {
     String username = clean(request.username());
     String email = clean(request.email());
     String roleName = normalizeRole(request.role());
-    if (users.existsByUsernameIgnoreCase(username) || users.existsByEmailIgnoreCase(email)) {
-      throw new IllegalArgumentException("Username or email already exists");
-    }
+    Map<String, String> conflicts = new LinkedHashMap<>();
+    if (users.existsByUsernameIgnoreCase(username)) conflicts.put("username", "This username is already registered. Choose another username.");
+    String normalizedEmail = email.toLowerCase(Locale.ROOT);
+    if (users.existsByEmailIgnoreCase(email) || contactClaimExists("email:" + normalizedEmail))
+      conflicts.put("email", "This email address is already registered. Use another email address.");
+    String mobile = blank(request.mobile());
+    String normalizedMobile = mobile == null ? null : com.metaarch.orgaccess.customer.CustomerAuthService.mobile(mobile);
+    if (normalizedMobile != null && contactClaimExists("mobile:" + normalizedMobile.substring(1)))
+      conflicts.put("mobile", "This mobile number is already registered. Use another mobile number.");
+    if (!conflicts.isEmpty()) throw new DuplicateUserContactException(conflicts);
     Role role = roles.findByName(roleName).orElseThrow(() -> new IllegalArgumentException("Unknown role"));
     UserAccount user = new UserAccount();
     user.setUsername(username); user.setEmail(email);
     user.setPasswordHash(passwordEncoder.encode(request.password()));
     user.setDisplayName(blank(request.name()));
-    user.setMobile(blank(request.mobile()));
+    user.setMobile(mobile);
     user.setStatus(status(request.status()));
     user.setEnabled(!"Blocked".equalsIgnoreCase(user.getStatus()));
     user.setLocked("Blocked".equalsIgnoreCase(user.getStatus()));
     user.getRoles().add(role);
     UserAccount saved = users.save(user);
     users.flush();
-    customerDb.update("INSERT INTO customer_contact_claims(contact,user_id) VALUES(?,?)","email:"+email.toLowerCase(java.util.Locale.ROOT),saved.getId());
-    if (saved.getMobile()!=null) customerDb.update("INSERT INTO customer_contact_claims(contact,user_id) VALUES(?,?)","mobile:"+com.metaarch.orgaccess.customer.CustomerAuthService.mobile(saved.getMobile()).substring(1),saved.getId());
+    customerDb.update("INSERT INTO customer_contact_claims(contact,user_id) VALUES(?,?)","email:"+normalizedEmail,saved.getId());
+    if (normalizedMobile!=null) customerDb.update("INSERT INTO customer_contact_claims(contact,user_id) VALUES(?,?)","mobile:"+normalizedMobile.substring(1),saved.getId());
     if (roleName.equals("CUSTOMER")) {
       users.flush();
       customerDb.update("INSERT INTO customers(id,user_id,full_name) VALUES(UNHEX(REPLACE(UUID(),'-','')),?,?)",saved.getId(),request.name()==null?username:request.name());
@@ -96,6 +105,71 @@ public class IdentityService {
     saveMembership(saved, role, request, actor);
     auditLogs.save(new AuditLog(actor, "CREATE_USER", saved.getUsername()));
     return saved;
+  }
+
+  @Transactional
+  public UserAccount updateStaff(Long id, UserUpdateRequest request, String actor) {
+    UserAccount user = users.findWithRolesById(id)
+        .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+    Role currentRole = user.getRoles().stream()
+        .filter(role -> role.getName().equals("GLOBAL_ADMIN") || role.getName().equals("LOCATION_ADMIN"))
+        .findFirst().orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("This account cannot be edited through staff management"));
+    String requestedRole = normalizeRole(request.role());
+    if (!requestedRole.equals("GLOBAL_ADMIN") && !requestedRole.equals("LOCATION_ADMIN"))
+      throw new org.springframework.security.access.AccessDeniedException("Only Global Admin and Location Admin roles can be assigned here");
+    List<Membership> targetMemberships = memberships.findByUserId(id).stream()
+        .filter(m -> m.getRole().getName().equals(currentRole.getName())).toList();
+    if (targetMemberships.isEmpty())
+      throw new org.springframework.security.access.AccessDeniedException("Staff account has no organization membership");
+    boolean orgMatches = targetMemberships.stream().allMatch(m -> "metaarch-commerce".equalsIgnoreCase(m.getOrganizationId()));
+    if (!orgMatches) throw new org.springframework.security.access.AccessDeniedException("Staff account is outside the authorized organization");
+    if (requestedRole.equals("LOCATION_ADMIN") && (request.location() == null || request.location().isBlank()))
+      throw new IllegalArgumentException("Location is required for a Location Admin");
+    if (requestedRole.equals("GLOBAL_ADMIN") && request.location() != null && !request.location().isBlank())
+      throw new IllegalArgumentException("Global Admin cannot be assigned to a location");
+    Role nextRole = roles.findByName(requestedRole)
+        .orElseThrow(() -> new IllegalArgumentException("Unknown role"));
+    user.setDisplayName(request.name().trim());
+    user.setEmail(request.email().trim());
+    user.setMobile(blank(request.mobile()));
+    String nextStatus = status(request.status());
+    if (!nextStatus.equalsIgnoreCase("Active") && !nextStatus.equalsIgnoreCase("Blocked"))
+      throw new IllegalArgumentException("Status must be Active or Blocked");
+    user.setStatus(nextStatus);
+    user.setEnabled(nextStatus.equalsIgnoreCase("Active"));
+    user.setLocked(nextStatus.equalsIgnoreCase("Blocked"));
+    user.getRoles().remove(currentRole);
+    user.getRoles().add(nextRole);
+    users.save(user);
+    for (Membership membership : targetMemberships) {
+      membership.setRole(nextRole);
+      if (requestedRole.equals("LOCATION_ADMIN")) membership.setLocationId(request.location().trim().toLowerCase(Locale.ROOT));
+      else membership.setLocationId(null);
+      memberships.save(membership);
+    }
+    auditLogs.save(new AuditLog(actor, "UPDATE_USER", user.getUsername()));
+    return user;
+  }
+
+  @Transactional(readOnly = true)
+  public List<StaffSummary> listStaff(String actor) {
+    return memberships.findByOrganizationIdIgnoreCase("metaarch-commerce").stream()
+        .filter(membership -> membership.getRole().getName().equals("GLOBAL_ADMIN") || membership.getRole().getName().equals("LOCATION_ADMIN"))
+        .map(membership -> new StaffSummary(membership.getUser().getId(), membership.getUser().getUsername(),
+            membership.getUser().getEmail(), membership.getUser().getDisplayName(), membership.getUser().getMobile(),
+            membership.getRole().getName(), membership.getUser().getStatus(), membership.getOrganizationId(),
+            membership.getLocationId(), membership.getStoreId(), membership.getStoreName()))
+        .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toMap(StaffSummary::id,
+            summary -> summary, (first, ignored) -> first, java.util.LinkedHashMap::new), map -> List.copyOf(map.values())));
+  }
+
+  public record StaffSummary(Long id, String username, String email, String name, String mobile, String role,
+      String status, String organizationId, String location, String storeId, String store) {}
+
+  private boolean contactClaimExists(String contact) {
+    Integer count = customerDb.queryForObject(
+        "SELECT COUNT(*) FROM customer_contact_claims WHERE contact = ?", Integer.class, contact);
+    return count != null && count > 0;
   }
 
   @Transactional
@@ -130,7 +204,8 @@ public class IdentityService {
     membership.setProviderOsmType(blank(request.providerOsmType()));
     membership.setProviderOsmId(blank(request.providerOsmId()));
     membership.setLocationAccuracyMeters(request.locationAccuracyMeters());
-    membership.setAssignedBy(blank(request.assignedBy()) == null ? actor : blank(request.assignedBy()));
+    // Attribution is security-sensitive; never trust a caller-provided assignedBy value.
+    membership.setAssignedBy(actor);
     memberships.save(membership);
   }
 

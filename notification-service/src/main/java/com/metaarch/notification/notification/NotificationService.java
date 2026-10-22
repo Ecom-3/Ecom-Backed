@@ -56,7 +56,23 @@ public class NotificationService {
 
   @Transactional(readOnly = true)
   public PageResponse<NotificationResponse> getByCustomer(UUID customerId, Pageable pageable) {
-    return PageResponse.from(repository.findByCustomerId(customerId, pageable).map(NotificationResponse::from));
+    return PageResponse.from(repository.findByCustomerIdAndClearedAtIsNull(customerId, pageable).map(NotificationResponse::from));
+  }
+
+  @Transactional
+  public NotificationResponse markRead(UUID customerId, UUID notificationId) {
+    Notification notification = repository.findByIdAndCustomerIdAndClearedAtIsNull(notificationId, customerId)
+      .orElseThrow(() -> new ResourceNotFoundException("Notification not found: " + notificationId));
+    notification.markRead(Instant.now());
+    return NotificationResponse.from(notification);
+  }
+
+  @Transactional
+  public int clearByCustomer(UUID customerId) {
+    var notifications = repository.findAllByCustomerIdAndClearedAtIsNull(customerId);
+    Instant clearedAt = Instant.now();
+    notifications.forEach(notification -> notification.clear(clearedAt));
+    return notifications.size();
   }
 
   @Transactional(readOnly = true)

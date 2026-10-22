@@ -36,7 +36,13 @@ public class CheckoutCoordinator {
       if (!"PREPARED".equals(current.state())) return;
       var saved=payload(group.id());
       // Verify all prices and quotes before any remote cart claim or reservation command.
-      for(var request:saved) verifyQuote(request,orders.preview(request));
+      var previews=new ArrayList<OrderResponse>();
+      for(var request:saved) {
+        var preview=orders.previewWithoutPromotion(request);
+        verifyQuote(request,preview);
+        previews.add(preview);
+      }
+      validatePromotion(saved,previews);
       for(var request:saved) {
         UUID reservation=UUID.nameUUIDFromBytes((group.id()+":"+request.storeId()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         jdbc.update("UPDATE checkout_children SET reservation_id=? WHERE checkout_id=? AND store_id=?",reservation.toString(),group.id().toString(),request.storeId());
@@ -88,7 +94,16 @@ public class CheckoutCoordinator {
       jdbc.update("UPDATE checkout_children SET state='RESERVED' WHERE checkout_id=? AND store_id=?",reply.orderId().toString(),reply.storeId());
       if(count(reply.orderId(),"RESERVED")!=requests.size()) return;
       // If availability/pricing changed, compensate before creating any child.
-      try { for(var item:requests) verifyQuote(item,orders.preview(item)); }
+      List<OrderResponse> previews=new ArrayList<>();
+      Promotion promotion;
+      try {
+        for(var item:requests) {
+          var preview=orders.previewWithoutPromotion(item);
+          verifyQuote(item,preview);
+          previews.add(preview);
+        }
+        promotion=validatePromotion(requests,previews);
+      }
       catch(com.metaarch.order.exception.DeliveryQuoteVerificationException | IllegalArgumentException failure) {
         transition(reply.orderId(),state,"COMPENSATING",reply.customerId());
         commandAll(reply.orderId(),"RELEASE");
@@ -96,8 +111,10 @@ public class CheckoutCoordinator {
       }
       transition(reply.orderId(),state,"COMMITTING",reply.customerId());
       BigDecimal total=BigDecimal.ZERO;
-      for(var item:requests) {
-        var order=orders.create(item);
+      List<BigDecimal> shares=discountShares(promotion,previews);
+      for(int index=0;index<requests.size();index++) {
+        var item=requests.get(index);
+        var order=promotion==null?orders.create(item):orders.createWithVerifiedPromotion(item,promotion.code(),shares.get(index));
         jdbc.update("UPDATE checkout_children SET order_id=? WHERE checkout_id=? AND store_id=?",order.id().toString(),reply.orderId().toString(),item.storeId());
         total=total.add(order.totalAmount());
       }
@@ -112,6 +129,27 @@ public class CheckoutCoordinator {
   private void verifyQuote(CreateOrderRequest request,OrderResponse quote) {
     if(request.deliveryCharge()!=null && request.deliveryCharge().compareTo(quote.deliveryCharge())!=0) throw new IllegalArgumentException("Delivery quote changed; refresh checkout");
   }
+  private Promotion validatePromotion(List<CreateOrderRequest> requests,List<OrderResponse> previews) {
+    String code=requests.stream().map(CreateOrderRequest::couponCode).filter(value->value!=null&&!value.isBlank()).map(String::trim).findFirst().orElse(null);
+    if(code==null) return null;
+    BigDecimal subtotal=previews.stream().flatMap(order->order.items().stream()).map(OrderItemResponse::totalPrice).reduce(BigDecimal.ZERO,BigDecimal::add);
+    String location=requests.stream().map(CreateOrderRequest::promotionLocation).filter(value->value!=null&&!value.isBlank()).findFirst().orElse(null);
+    var validated=orders.validateCouponForCheckout(code,subtotal,location,null);
+    return new Promotion(validated.code(),validated.discountAmount(),subtotal);
+  }
+  private List<BigDecimal> discountShares(Promotion promotion,List<OrderResponse> previews) {
+    if(promotion==null) return previews.stream().map(order->BigDecimal.ZERO.setScale(2)).toList();
+    BigDecimal allocated=BigDecimal.ZERO;
+    List<BigDecimal> shares=new ArrayList<>();
+    for(int index=0;index<previews.size();index++) {
+      BigDecimal itemTotal=previews.get(index).items().stream().map(OrderItemResponse::totalPrice).reduce(BigDecimal.ZERO,BigDecimal::add);
+      BigDecimal share=index==previews.size()-1?promotion.discount().subtract(allocated):promotion.discount().multiply(itemTotal).divide(promotion.subtotal(),2,java.math.RoundingMode.DOWN);
+      if(share.compareTo(itemTotal)>0) throw new IllegalArgumentException("Promotion discount could not be applied to these store orders.");
+      shares.add(share);allocated=allocated.add(share);
+    }
+    return shares;
+  }
+  private record Promotion(String code,BigDecimal discount,BigDecimal subtotal) { }
   private void commandAll(UUID group,String action) {
     for(var item:payload(group)) {
       String child=jdbc.queryForObject("SELECT reservation_id FROM checkout_children WHERE checkout_id=? AND store_id=?",String.class,group.toString(),item.storeId());

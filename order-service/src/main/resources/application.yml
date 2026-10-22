@@ -1,6 +1,10 @@
 server:
   port: 3311
 
+checkout:
+  multi-store:
+    enabled: true
+
 app:
   jwt:
     secret: "${JWT_SECRET:change-this-secret-to-a-long-random-string}"

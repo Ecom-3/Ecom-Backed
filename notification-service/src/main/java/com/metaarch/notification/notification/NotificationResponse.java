@@ -16,6 +16,8 @@ public record NotificationResponse(
   UUID sourceEventId,
   String failureReason,
   Instant sentAt,
+  Instant readAt,
+  Instant clearedAt,
   Instant createdAt,
   Instant updatedAt
 ) {
@@ -33,7 +35,11 @@ public record NotificationResponse(
       notification.getSourceEventId(),
       notification.getFailureReason(),
       notification.getSentAt(),
+      notification.getReadAt(),
+      notification.getClearedAt(),
       notification.getCreatedAt(),
       notification.getUpdatedAt());
   }
+
+  public boolean read() { return readAt != null; }
 }

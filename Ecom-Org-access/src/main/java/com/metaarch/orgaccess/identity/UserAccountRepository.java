@@ -9,6 +9,8 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long> 
   Optional<UserAccount> findByUsernameIgnoreCase(String username);
   @EntityGraph(attributePaths = {"roles", "roles.permissions"})
   Optional<UserAccount> findByOauthSubject(String oauthSubject);
+  @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"roles", "roles.permissions"})
+  Optional<UserAccount> findWithRolesById(Long id);
   boolean existsByUsernameIgnoreCase(String username);
   boolean existsByEmailIgnoreCase(String email);
 }

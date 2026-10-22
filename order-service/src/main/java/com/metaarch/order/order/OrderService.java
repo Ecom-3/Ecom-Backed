@@ -29,7 +29,7 @@ public class OrderService {
 
   @Transactional
   public OrderResponse create(CreateOrderRequest request) {
-    Order order = build(request);
+    Order order = build(request, null, true);
     Order saved = orders.save(order);
     events.publish(OrderEventType.ORDER_CREATED, saved);
     return OrderResponse.from(saved);
@@ -37,10 +37,26 @@ public class OrderService {
 
   @Transactional(readOnly = true)
   public OrderResponse preview(CreateOrderRequest request) {
-    return OrderResponse.from(build(request));
+    return OrderResponse.from(build(request, null, true));
   }
 
-  private Order build(CreateOrderRequest request) {
+  @Transactional(readOnly = true)
+  OrderResponse previewWithoutPromotion(CreateOrderRequest request) {
+    return OrderResponse.from(build(request, null, false));
+  }
+
+  @Transactional
+  OrderResponse createWithVerifiedPromotion(CreateOrderRequest request, String couponCode, BigDecimal discount) {
+    Order saved=orders.save(build(request,new VerifiedPromotion(couponCode,discount),false));
+    events.publish(OrderEventType.ORDER_CREATED,saved);
+    return OrderResponse.from(saved);
+  }
+
+  CatalogDeliveryQuoteClient.CouponPromotion validateCouponForCheckout(String code,BigDecimal subtotal,String location,String store) {
+    return catalogDeliveryQuoteClient.validateCoupon(code,subtotal,location,store);
+  }
+
+  private Order build(CreateOrderRequest request, VerifiedPromotion verifiedPromotion, boolean validateCoupon) {
     if (isGlobal(request) && isPickup(request)) throw new IllegalArgumentException("Global orders are delivery only");
     List<CreateOrderAddressRequest> addresses = normalizedAddresses(request);
     if (requiresShippingAddress(request)) ensureShippingAddress(addresses);
@@ -52,6 +68,15 @@ public class OrderService {
       if (!identities.add(verified.productId() + ":" + verified.variantId())) throw new IllegalArgumentException("Duplicate order item");
       order.addItem(new OrderItem(verified.productId(), verified.variantId(), verified.productName(), verified.quantity(), money(verified.unitPrice())));
     });
+    String couponCode=trimToNull(request.couponCode());
+    if(verifiedPromotion!=null) {
+      order.setCouponCode(trimToNull(verifiedPromotion.code()));
+      order.setDiscountAmount(money(verifiedPromotion.discount()));
+    } else if(validateCoupon && couponCode!=null) {
+      var promotion=catalogDeliveryQuoteClient.validateCoupon(couponCode,itemSubtotal(order),request.promotionLocation(),order.getStoreId());
+      order.setCouponCode(promotion.code());
+      order.setDiscountAmount(money(promotion.discountAmount()));
+    }
     applyVerifiedDeliverySnapshot(order, request, itemSubtotal(order));
     resolveDeliveryZoneLocation(order, request);
     order.setHandlingFee(new BigDecimal("5.00"));
@@ -156,7 +181,9 @@ public class OrderService {
   private void calculate(Order order) {
     order.getItems().forEach(OrderItem::recalculateTotal);
     BigDecimal itemsTotal = order.getItems().stream().map(OrderItem::getTotalPrice).reduce(ZERO, BigDecimal::add);
-    order.setTotalAmount(itemsTotal.add(order.getDeliveryCharge() == null ? ZERO : order.getDeliveryCharge()).add(order.getHandlingFee()).setScale(2, RoundingMode.HALF_UP));
+    BigDecimal total=itemsTotal.add(order.getDeliveryCharge() == null ? ZERO : order.getDeliveryCharge()).add(order.getHandlingFee()).subtract(order.getDiscountAmount()==null?ZERO:order.getDiscountAmount());
+    if(total.signum()<0) throw new IllegalArgumentException("Promotion discount exceeds the order amount.");
+    order.setTotalAmount(total.setScale(2, RoundingMode.HALF_UP));
   }
 
   private void applyVerifiedDeliverySnapshot(Order order, CreateOrderRequest request, BigDecimal orderSubtotal) {
@@ -345,4 +372,6 @@ public class OrderService {
     if (value == null || value.isBlank()) return null;
     return value.trim();
   }
+
+  private record VerifiedPromotion(String code,BigDecimal discount) { }
 }

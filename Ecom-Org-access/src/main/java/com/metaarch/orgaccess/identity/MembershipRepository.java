@@ -13,4 +13,10 @@ public interface MembershipRepository extends JpaRepository<Membership, Long> {
 
   @EntityGraph(attributePaths = {"user", "role"})
   List<Membership> findByLocationIdIgnoreCaseAndRole_Name(String locationId, String roleName);
+
+  @EntityGraph(attributePaths = {"role", "role.permissions"})
+  List<Membership> findByUserId(Long userId);
+
+  @EntityGraph(attributePaths = {"user", "role"})
+  List<Membership> findByOrganizationIdIgnoreCase(String organizationId);
 }

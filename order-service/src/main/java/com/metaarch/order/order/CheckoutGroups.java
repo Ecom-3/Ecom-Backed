@@ -27,7 +27,8 @@ public class CheckoutGroups {
   }
 
   public record Child(String storeId, UUID cartId, UUID orderId, String state, BigDecimal handlingFee,
-      BigDecimal subtotal, BigDecimal deliveryFee, BigDecimal total, OrderStatus orderStatus, PaymentStatus paymentStatus) { }
+      BigDecimal subtotal, BigDecimal deliveryFee, BigDecimal discountAmount, String couponCode,
+      BigDecimal total, OrderStatus orderStatus, PaymentStatus paymentStatus) { }
   public record Result(UUID id, UUID customerId, String state, BigDecimal aggregateTotal, List<Child> children, boolean recoveryRequired) { }
 
   @Transactional
@@ -36,6 +37,7 @@ public class CheckoutGroups {
     if (key == null || !key.matches("[A-Za-z0-9_-]{16,128}")) throw new IllegalArgumentException("Invalid checkout retry key");
     if (requests == null || requests.isEmpty()) throw new IllegalArgumentException("Checkout requires store carts");
     Set<String> stores = new HashSet<>();
+    Set<String> couponCodes = new HashSet<>();
     Set<UUID> carts = new HashSet<>();
     for (CreateOrderRequest request : requests) {
       if (request == null || !owner.equals(request.customerId())) throw new AccessDeniedException("Checkout customer mismatch");
@@ -47,7 +49,9 @@ public class CheckoutGroups {
       if (request.paymentStatus() != null && request.paymentStatus() != PaymentStatus.PENDING) {
         throw new IllegalArgumentException("Checkout cannot confirm payment");
       }
+      if(request.couponCode()!=null && !request.couponCode().isBlank()) couponCodes.add(request.couponCode().trim().toUpperCase(Locale.ROOT));
     }
+    if(couponCodes.size()>1) throw new IllegalArgumentException("Use one coupon code per checkout.");
     String payload;
     try {
       payload = mapper.writeValueAsString(requests.stream().sorted(Comparator.comparing(CreateOrderRequest::storeId)).toList());
@@ -98,8 +102,9 @@ public class CheckoutGroups {
           OrderResponse order=orderId==null?null:orders.get(orderId);
           if(order!=null && (!owner.equals(order.customerId()) || !rs.getString(1).equals(order.storeId()))) throw new AccessDeniedException("Checkout child ownership mismatch");
           return new Child(rs.getString(1),UUID.fromString(rs.getString(2)),orderId,rs.getString(4),rs.getBigDecimal(5),
-              order==null?null:order.totalAmount().subtract(order.deliveryCharge()).subtract(order.handlingFee()),
-              order==null?null:order.deliveryCharge(),order==null?null:order.totalAmount(),order==null?null:order.status(),order==null?null:order.paymentStatus());
+              order==null?null:order.totalAmount().subtract(order.deliveryCharge()).subtract(order.handlingFee()).add(order.discountAmount()),
+              order==null?null:order.deliveryCharge(),order==null?null:order.discountAmount(),order==null?null:order.couponCode(),
+              order==null?null:order.totalAmount(),order==null?null:order.status(),order==null?null:order.paymentStatus());
         }, id.toString());
     boolean recovery=jdbc.queryForObject("SELECT COUNT(*) FROM sync_outbox WHERE aggregate_id=? AND target='inventory-service' AND state='DEAD'",Integer.class,id.toString())>0;
     return new Result(id, owner, row.get("state").toString(), (BigDecimal) row.get("aggregate_total"), children,recovery);
