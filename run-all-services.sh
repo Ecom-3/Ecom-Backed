@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Explicit `sh script.sh` invocations ignore the shebang. Switch to Bash before
+# evaluating Bash-specific options, substitutions, or arrays below.
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec bash "$0" "$@"
+fi
 set -Eeo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
