@@ -29,6 +29,7 @@ Options:
   --legacy-alerts     Include Ecom-Alerts (requires Kafka)
   -h, --help          Show this help
 
+Before start/restart, processes listening on selected service ports are stopped.
 With no service names, starts/stops all core backend services. Service names
 may be specified exactly; use "all" or "*" for all selected backend services.
 Examples:
@@ -380,6 +381,7 @@ require_command java
 require_command mvn
 require_command nc
 require_command curl
+require_command lsof
 
 select_java_21 || true
 java_version_output="$(java -version 2>&1 || true)"
@@ -526,25 +528,78 @@ if ((needs_sync)); then
     )
 fi
 
-check_required_ports() {
-    local service port
-    for service in "${SELECTED_SERVICES[@]}"; do
-        port="$(service_port "$service")"
-        if port_is_open 127.0.0.1 "$port"; then
-            pid="$(head -n 1 "$PID_DIR/$service.pid" 2>/dev/null || true)"
-            if [[ -z "$pid" ]] || ! is_tracked_process "$service" "$pid"; then
-                printf 'Port %s for %s is already in use. Stop the conflicting process and retry; this launcher will not kill untracked processes.\n' "$port" "$service" >&2
+listener_pids() {
+    local port="$1" result status
+    # lsof returns 1 when there are no matching listeners.
+    if result="$(lsof -nP -t -iTCP:"$port" -sTCP:LISTEN)"; then
+        printf '%s\n' "$result" | sort -u
+    else
+        status=$?
+        [[ "$status" == 1 ]] || return "$status"
+    fi
+}
+
+clear_service_ports() {
+    local service port pid attempt listeners remaining
+    local services=("${SELECTED_SERVICES[@]}")
+    local ports=()
+    ((START_FRONTEND == 0)) || services+=(Ecom-frontend)
+    for service in "${services[@]}"; do
+        ports+=("$(service_port "$service")")
+    done
+
+    # Validate listener ownership before stopping any selected services.
+    for port in "${ports[@]}"; do
+        listeners="$(listener_pids "$port")" || return 1
+        for pid in $listeners; do
+            if [[ ! "$pid" =~ ^[0-9]+$ ]] || ((pid <= 1 || pid == $$ || pid == PPID)); then
+                printf 'Port %s belongs to protected PID %s; cannot free it automatically.\n' "$port" "$pid" >&2
                 return 1
             fi
-        fi
+        done
     done
-    if ((START_FRONTEND)) && port_is_open 127.0.0.1 5173; then
-        pid="$(head -n 1 "$PID_DIR/Ecom-frontend.pid" 2>/dev/null || true)"
-        if [[ -z "$pid" ]] || ! is_tracked_process Ecom-frontend "$pid"; then
-            printf 'Port 5173 for Ecom-frontend is already in use. Stop the conflicting process and retry.\n' >&2
-            return 1
+
+    # Stop tracked Maven launchers too, so their PID files cannot skip relaunch.
+    for service in "${services[@]}"; do
+        stop_one "$service"
+    done
+    for port in "${ports[@]}"; do
+        listeners="$(listener_pids "$port")" || return 1
+        for pid in $listeners; do
+            if ((pid <= 1 || pid == $$ || pid == PPID)); then
+                printf 'Port %s belongs to protected PID %s.\n' "$port" "$pid" >&2
+                return 1
+            fi
+            printf 'Stopping PID %s listening on port %s...\n' "$pid" "$port"
+            kill -TERM "$pid" 2>/dev/null || true
+        done
+    done
+
+    for ((attempt=0; attempt<20; attempt++)); do
+        remaining=0
+        for port in "${ports[@]}"; do
+            listeners="$(listener_pids "$port")" || return 1
+            [[ -n "$listeners" ]] || continue
+            remaining=1
+            if ((attempt == 15)); then
+                for pid in $listeners; do
+                    if ((pid <= 1 || pid == $$ || pid == PPID)); then
+                        printf 'Port %s belongs to protected PID %s.\n' "$port" "$pid" >&2
+                        return 1
+                    fi
+                    printf 'Port %s still occupied by PID %s; sending SIGKILL.\n' "$port" "$pid" >&2
+                    kill -KILL "$pid" 2>/dev/null || true
+                done
+            fi
+        done
+        if ((remaining == 0)); then
+            printf 'All selected service ports are available.\n'
+            return 0
         fi
-    fi
+        sleep 1
+    done
+    printf 'Required service ports are still occupied; no application services were started.\n' >&2
+    return 1
 }
 
 wait_for_health() {
@@ -605,7 +660,7 @@ if [[ "$ACTION" == restart ]]; then
     stop_selected
 fi
 
-check_required_ports
+clear_service_ports
 if contains_service Ecom-Alerts; then start_kafka_if_needed; fi
 
 if ((needs_database)); then
