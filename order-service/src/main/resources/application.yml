@@ -7,14 +7,20 @@ app:
     issuer: org-access
 
 spring:
+  profiles:
+    active: prod
   application:
     name: order-service
 
   config:
     import: "optional:configserver:http://localhost:8888"
 
+  sql:
+    init:
+      mode: never
+
   datasource:
-    url: "jdbc:mysql://localhost:3306/order-service?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+    url: "jdbc:mysql://localhost:3306/order-service?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
     username: "root"
     password: "root"
     driver-class-name: com.mysql.cj.jdbc.Driver

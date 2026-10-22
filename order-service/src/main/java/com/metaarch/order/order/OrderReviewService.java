@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metaarch.order.exception.InvalidOrderStateException;
 import java.util.*;
 import org.springframework.jdbc.core.JdbcTemplate;
-import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,11 +14,6 @@ public class OrderReviewService {
   private final JdbcTemplate jdbc;
   private final ObjectMapper mapper;
   public OrderReviewService(OrderRepository orders, JdbcTemplate jdbc, ObjectMapper mapper) { this.orders=orders; this.jdbc=jdbc; this.mapper=mapper; }
-
-  @PostConstruct
-  void ensureReviewTable() {
-    jdbc.execute("CREATE TABLE IF NOT EXISTS order_reviews (id BINARY(16) NOT NULL PRIMARY KEY, order_id BINARY(16) NOT NULL UNIQUE, customer_id BINARY(16) NOT NULL, rating TINYINT NOT NULL, comment VARCHAR(1000) NOT NULL, photo_urls JSON NOT NULL, created_at DATETIME(6) NOT NULL, updated_at DATETIME(6) NOT NULL, CONSTRAINT chk_order_reviews_rating CHECK (rating BETWEEN 1 AND 5), CONSTRAINT fk_order_reviews_order FOREIGN KEY (order_id) REFERENCES orders(id))");
-  }
 
   @Transactional
   public OrderReviewResponse save(UUID orderId, OrderReviewRequest request) {

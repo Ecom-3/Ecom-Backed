@@ -2,6 +2,10 @@ server:
   port: 8081
 
 spring:
+  sql:
+    init:
+      mode: never
+
   datasource:
     url: jdbc:h2:mem:timesheetdb;DB_CLOSE_DELAY=-1
     driverClassName: org.h2.Driver
@@ -9,7 +13,7 @@ spring:
     password:
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
 
 app:

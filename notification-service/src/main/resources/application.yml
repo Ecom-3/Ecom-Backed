@@ -1,10 +1,16 @@
 server:
   port: 3317
 spring:
+  profiles:
+    active: prod
   application:
     name: notification-service
   config:
     import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}
+  sql:
+    init:
+      mode: never
+
   datasource:
     url: jdbc:mysql://localhost:3306/notification_service?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
@@ -24,7 +30,7 @@ spring:
         connection:
           autocommit: false
   flyway:
-    enabled: ${FLYWAY_ENABLED:false}
+    enabled: false
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
   mail:
     host: smtp.gmail.com

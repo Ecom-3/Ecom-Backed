@@ -182,6 +182,7 @@ $env:EUREKA_SERVER_URL = "http://localhost:8761/eureka"
 $env:FLYWAY_ENABLED = "false"
 $env:SPRING_FLYWAY_ENABLED = "false"
 $env:SPRING_JPA_HIBERNATE_DDL_AUTO = "validate"
+$env:SPRING_SQL_INIT_MODE = "never"
 $env:CUSTOMER_MIGRATION_JDBC_URL = "jdbc:mysql://$MysqlHost`:$MysqlPort/customer_profiles?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
 $env:CUSTOMER_MIGRATION_DB_USER = $MysqlUsername
 $env:CUSTOMER_MIGRATION_DB_PASSWORD = $MysqlPassword

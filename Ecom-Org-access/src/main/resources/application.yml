@@ -1,26 +1,32 @@
 spring:
+  profiles:
+    active: prod
   application:
     name: org-access
 
   config:
     import: "optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}"
 
+  sql:
+    init:
+      mode: never
+
   datasource:
-    url: "jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:users_roles}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+    url: "jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:users_roles}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
     username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:root}
+    password: ${MYSQL_PASSWORD:rootroot}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
 
   flyway:
-    enabled: ${FLYWAY_ENABLED:true}
+    enabled: false
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
 
 app:

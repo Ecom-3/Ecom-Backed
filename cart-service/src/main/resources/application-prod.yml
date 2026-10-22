@@ -1,0 +1,52 @@
+server:
+  port: 8091
+
+spring:
+  autoconfigure:
+    exclude: com.metaarch.sync.SyncAutoConfiguration
+  application:
+    name: cart-service
+
+  config:
+    import: "optional:configserver:http://localhost:8888"
+
+  sql:
+    init:
+      mode: never
+
+  datasource:
+    url: "jdbc:mysql://localhost:3306/cart_service?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+    username: "root"
+    password: ${MYSQL_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  flyway:
+    enabled: false
+    baseline-on-migrate: true
+
+app:
+  jwt:
+    secret: "${JWT_SECRET:change-this-secret-to-a-long-random-string}"
+    issuer: org-access
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}

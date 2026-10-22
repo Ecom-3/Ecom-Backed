@@ -2,6 +2,10 @@ server:
   port: 8086
 
 spring:
+  sql:
+    init:
+      mode: never
+
   datasource:
     url: "jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/Layout?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
     username: "${MYSQL_USERNAME:root}"
@@ -9,7 +13,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:

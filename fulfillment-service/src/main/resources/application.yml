@@ -5,10 +5,16 @@ app:
     secret: "${JWT_SECRET:change-this-secret-to-a-long-random-string}"
     issuer: org-access
 spring:
+  profiles:
+    active: prod
   application:
     name: fulfillment-service
   config:
     import: "optional:configserver:http://localhost:8888"
+  sql:
+    init:
+      mode: never
+
   datasource:
     url: "jdbc:mysql://localhost:3306/fulfillment-service?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
     username: "root"

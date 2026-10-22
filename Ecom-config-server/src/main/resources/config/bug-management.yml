@@ -1,7 +1,11 @@
 server.port: ${SERVER_PORT:8089}
 spring:
+  sql:
+    init:
+      mode: never
+
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3307}/${MYSQL_DATABASE:bug_management}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3307}/${MYSQL_DATABASE:bug_management}?useSSL=false&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:rootroot}
   jpa.hibernate.ddl-auto: validate

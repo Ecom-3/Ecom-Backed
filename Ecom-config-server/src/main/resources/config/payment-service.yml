@@ -2,6 +2,10 @@ server:
   port: ${SERVER_PORT:3314}
 
 spring:
+  sql:
+    init:
+      mode: never
+
   datasource:
     url: "jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/payment_service?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
     username: ${MYSQL_USERNAME:root}
@@ -13,7 +17,7 @@ spring:
       ddl-auto: validate
 
   flyway:
-    enabled: ${FLYWAY_ENABLED:false}
+    enabled: false
 
 
 

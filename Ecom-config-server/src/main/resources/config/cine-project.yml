@@ -1,12 +1,16 @@
 server:
   port: ${SERVER_PORT:8088}
 spring:
+  sql:
+    init:
+      mode: never
+
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3307}/${MYSQL_DATABASE:cine_project}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3307}/${MYSQL_DATABASE:cine_project}?useSSL=false&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:rootroot}
   jpa:
-    hibernate.ddl-auto: update
+    hibernate.ddl-auto: validate
 app.jwt.secret: ${JWT_SECRET:KMFZLQ3X0AEaQBVwFkrssIUJ6XG0pw67QXWxvK_MUppibhcL7Eh1r7fRDImeg6wE}
 springdoc:
   swagger-ui:

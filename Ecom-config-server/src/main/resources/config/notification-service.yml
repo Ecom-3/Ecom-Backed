@@ -2,6 +2,10 @@ server:
   port: ${SERVER_PORT:3317}
 
 spring:
+  sql:
+    init:
+      mode: never
+
   datasource:
     url: "jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:notification_service}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
     username: ${MYSQL_USERNAME:root}
@@ -17,7 +21,7 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
 
   flyway:
-    enabled: ${FLYWAY_ENABLED:false}
+    enabled: false
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
   mail:
     host: ${SMTP_HOST:}

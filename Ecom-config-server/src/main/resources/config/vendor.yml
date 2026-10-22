@@ -2,8 +2,12 @@ server:
   port: ${SERVER_PORT:8196}
 
 spring:
+  sql:
+    init:
+      mode: never
+
   datasource:
-    url: "jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:vendor_service}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+    url: "jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:vendor_service}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:root}
 
@@ -13,7 +17,7 @@ spring:
       ddl-auto: validate
 
   flyway:
-    enabled: true
+    enabled: false
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
 
 app:

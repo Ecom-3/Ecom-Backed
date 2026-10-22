@@ -20,6 +20,32 @@ If you started the frontend, stop it separately:
 Test-NetConnection localhost -Port 8082
 Invoke-RestMethod http://localhost:8082/actuator/health
 
+macOS and Linux
+---------------
+Use the Bash launchers from the backend directory. Java 21, Maven,
+MySQL, netcat (nc), and curl are required; npm and Node.js are needed only
+when starting the frontend. The MySQL server must already be running. The
+launcher uses Java 21; it prefers a Java 21 JDK from JAVA_HOME, macOS
+java_home, or common local JDK locations. On macOS, select an installed
+Java 21 with: export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+
+chmod +x ./run-all-services.sh ./stop-all-services.sh
+./run-all-services.sh start
+./run-all-services.sh start --frontend
+./run-all-services.sh start --legacy-alerts
+./run-all-services.sh restart
+./run-all-services.sh stop
+./run-all-services.sh stop frontend
+
+The launcher loads KEY=value settings from .env beside the script (or env if
+.env is absent) without executing the file. Set ENV_FILE to use another path.
+Existing environment variables take precedence. Logs and
+PID files are stored under ../.local/logs and ../.local/pids. Legacy alerts
+require Kafka; the launcher can start it from KAFKA_HOME (or ../tools/kafka
+or ./tools/kafka) when its Unix launcher and KRaft config are present.
+Unlike the Windows launcher, it does not start a system MySQL service and
+will not kill untracked processes to clear a port.
+
 
 Role	Example username
 Super admin	admin
@@ -31,3 +57,6 @@ Customer	demo.customer@example.com
 Customer	priya.nair@example.com
 
 password : admin123
+
+sudo chown -R "$(id -un):$(id -gn)" http-sync/target
+sh ./run-all-services.sh

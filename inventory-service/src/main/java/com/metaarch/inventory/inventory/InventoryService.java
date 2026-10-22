@@ -9,7 +9,6 @@ import com.metaarch.inventory.movement.StockMovementRecorder;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import jakarta.annotation.PostConstruct;
 
 @Service
 public class InventoryService {
@@ -18,15 +17,6 @@ public class InventoryService {
   private final StockMovementRecorder movements;
   private final org.springframework.jdbc.core.JdbcTemplate jdbc;
   public InventoryService(InventoryRepository inventories, StockMovementRecorder movements,org.springframework.jdbc.core.JdbcTemplate jdbc) { this.inventories = inventories; this.movements = movements; this.jdbc=jdbc; }
-
-  @PostConstruct
-  void ensureGlobalAfghanRaisinsStock() {
-    UUID productId = UUID.fromString("21000000-0000-0000-0000-000000000008");
-    UUID variantId = UUID.fromString("c88ea8c7-c3cf-11f1-860d-14cb19888cfa");
-    if (!inventories.existsByProductIdAndVariantKeyAndStoreId(productId, variantId, "global-store")) {
-      inventories.save(new Inventory(productId, variantId, "global-store", 100, 0, 10, InventoryStatus.ACTIVE));
-    }
-  }
 
   @Transactional public InventoryResponse create(InventoryRequest r) {
     validateQuantities(r.availableQuantity(), r.reservedQuantity());

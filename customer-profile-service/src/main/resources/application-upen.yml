@@ -1,0 +1,49 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: customer-profile-service
+
+  config:
+    import: "optional:configserver:http://localhost:8888"
+
+  sql:
+    init:
+      mode: never
+
+  datasource:
+    url: "jdbc:mysql://localhost:3306/customer_profiles?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+    username: "root"
+    password: ${MYSQL_PASSWORD:rootroot}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  flyway:
+    enabled: false
+    baseline-on-migrate: true
+
+app:
+  jwt:
+    secret: "${JWT_SECRET:change-this-secret-to-a-long-random-string}"
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
