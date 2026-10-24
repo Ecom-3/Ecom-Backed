@@ -42,6 +42,22 @@ class FulfillmentServiceTest {
   }
 
   @Test
+  void createsGlobalFulfillmentAndPublishesCreationEvent() {
+    UUID orderId = UUID.randomUUID();
+    CreateFulfillmentRequest request = new CreateFulfillmentRequest(orderId, UUID.randomUUID(), "global-store",
+        UUID.randomUUID(), FulfillmentType.GLOBAL);
+    when(repository.findByOrderId(orderId)).thenReturn(java.util.Optional.empty());
+    when(repository.save(org.mockito.ArgumentMatchers.any(Fulfillment.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    Fulfillment saved = service.createEntity(request);
+
+    assertThat(saved.getFulfillmentType()).isEqualTo(FulfillmentType.GLOBAL);
+    assertThat(saved.getStatus()).isEqualTo(FulfillmentStatus.PENDING);
+    org.mockito.Mockito.verify(publisher).publish(com.metaarch.fulfillment.event.FulfillmentEventType.FULFILLMENT_CREATED, saved, null, null);
+  }
+
+  @Test
   void rejectsDuplicateFulfillment() {
     UUID orderId = UUID.randomUUID();
     Fulfillment existing = new Fulfillment(orderId, UUID.randomUUID(), "store-1", FulfillmentType.SHIP_TO_HOME, null);

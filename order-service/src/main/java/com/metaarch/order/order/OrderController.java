@@ -19,6 +19,10 @@ public class OrderController {
   @GetMapping public List<OrderResponse> list(@RequestParam(required = false) String storeId) { return service.list(storeId); }
   @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.read(#orderId)")
   @GetMapping("/{orderId}") public OrderResponse get(@PathVariable UUID orderId) { return service.get(orderId); }
+  @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.globalAssignment()")
+  @PostMapping("/{orderId}/global-store-assignment") public OrderResponse assignGlobalStore(@PathVariable UUID orderId, @Valid @RequestBody GlobalStoreAssignmentRequest request) { return service.assignGlobalStore(orderId, request.storeId()); }
+  @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.globalAssignment()")
+  @GetMapping("/{orderId}/global-store-assignment-options") public List<GlobalStoreAssignmentOption> globalStoreAssignmentOptions(@PathVariable UUID orderId) { return service.globalStoreAssignmentOptions(orderId); }
   @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.customer(#customerId)")
   @GetMapping("/customer/{customerId}") public List<OrderResponse> getByCustomer(@PathVariable UUID customerId) { return service.getByCustomer(customerId); }
   @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.manage(#orderId)")
@@ -29,10 +33,14 @@ public class OrderController {
   @PostMapping("/{orderId}/cancel") public OrderResponse cancel(@PathVariable UUID orderId) { return service.cancel(orderId); }
   @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.owner(#orderId)")
   @GetMapping("/{orderId}/items") public List<OrderItemResponse> getItems(@PathVariable UUID orderId) { return service.getItems(orderId); }
-  @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.owner(#orderId)")
-  @GetMapping("/{orderId}/review") public ResponseEntity<OrderReviewResponse> getReview(@PathVariable UUID orderId) { return reviews.get(orderId).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build()); }
-  @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.owner(#orderId)")
+  @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.customerOwner(#orderId)")
+  @GetMapping("/{orderId}/review") public ResponseEntity<OrderReviewResponse> getReview(@PathVariable UUID orderId, @RequestParam(required=false) UUID productId) { return (productId == null ? reviews.get(orderId) : reviews.get(orderId,productId)).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build()); }
+  @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.customerOwner(#orderId)")
+  @GetMapping("/{orderId}/reviews") public List<OrderReviewResponse> getReviews(@PathVariable UUID orderId) { return reviews.getForOrder(orderId); }
+  @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.customerOwner(#orderId)")
   @PostMapping("/{orderId}/review") public OrderReviewResponse saveReview(@PathVariable UUID orderId, @Valid @RequestBody OrderReviewRequest request) { return reviews.save(orderId,request); }
+  @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.customerOwner(#orderId)")
+  @PostMapping("/{orderId}/reviews") public OrderReviewResponse saveProductReview(@PathVariable UUID orderId, @Valid @RequestBody OrderReviewRequest request) { return reviews.save(orderId,request); }
   @org.springframework.security.access.prepost.PreAuthorize("@orderAccess.customer(#customerId)")
   @GetMapping("/customer/{customerId}/history") public List<OrderHistoryResponse> getHistory(@PathVariable UUID customerId) { return service.getHistory(customerId); }
 }

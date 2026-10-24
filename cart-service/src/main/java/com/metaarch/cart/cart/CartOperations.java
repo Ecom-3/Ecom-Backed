@@ -38,18 +38,29 @@ public class CartOperations {
     Cart cart=carts.findLockedById(id).orElseThrow(() -> new ResourceNotFoundException("Cart not found"));
     var previous=jdbc.queryForList("SELECT request_hash FROM cart_checkout_claims WHERE cart_id=?", id.toString());
     if (!previous.isEmpty()) {
-      if (!request.requestHash().equals(previous.get(0).get("request_hash"))) throw new ConflictException("Cart is claimed by a different checkout");
+      // The order request hash also covers mutable checkout details such as the
+      // delivery address. A retry may update those details after the cart was
+      // claimed but before an order was committed. The order service serializes
+      // creation and rejects a second order for this cart, so the cart claim can
+      // safely be replayed when its store and item snapshot are unchanged.
+      if (!matchesCheckoutSnapshot(cart, request)) throw new ConflictException("Cart is claimed by a different checkout");
       return CartResponse.from(cart);
     }
     if (cart.getStatus()!=CartStatus.ACTIVE) throw new InvalidCartStateException("Cart is not active");
-    var expected=cart.getItems().stream().filter(i -> i.getStatus()==CartItemStatus.ACTIVE)
-      .map(i -> new CheckoutCartRequest.Line(i.getProductId(),i.getVariantId(),i.getQuantity())).toList();
-    if (!cart.getStoreId().equals(request.storeId()) || expected.isEmpty() || expected.size()!=request.items().size()
-        || new HashSet<>(request.items()).size()!=request.items().size() || !new HashSet<>(expected).equals(new HashSet<>(request.items()))) {
+    if (!matchesCheckoutSnapshot(cart, request)) {
       throw new ConflictException("Checkout items or store do not match the current cart");
     }
     jdbc.update("INSERT INTO cart_checkout_claims(cart_id,request_hash) VALUES (?,?)", id.toString(), request.requestHash());
     cart.setStatus(CartStatus.CHECKED_OUT);
     return CartResponse.from(cart);
+  }
+
+  private boolean matchesCheckoutSnapshot(Cart cart, CheckoutCartRequest request) {
+    if (!cart.getStoreId().equals(request.storeId())) return false;
+    var expected=cart.getItems().stream().filter(i -> i.getStatus()==CartItemStatus.ACTIVE)
+      .map(i -> new CheckoutCartRequest.Line(i.getProductId(),i.getVariantId(),i.getQuantity())).toList();
+    return !expected.isEmpty() && expected.size()==request.items().size()
+      && new HashSet<>(request.items()).size()==request.items().size()
+      && new HashSet<>(expected).equals(new HashSet<>(request.items()));
   }
 }

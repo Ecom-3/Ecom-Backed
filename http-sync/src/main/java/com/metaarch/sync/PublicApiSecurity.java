@@ -22,6 +22,7 @@ public class PublicApiSecurity {
     return http.csrf(c -> c.disable()).sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
       .authorizeHttpRequests(a -> a.requestMatchers("/actuator/health", "/api/v1/payments/capabilities",
         "/internal/events", "/internal/provider/payment-webhook").permitAll()
+        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/reviews/products", "/api/v1/reviews/products/**").permitAll()
         .requestMatchers("/api/v1/**").authenticated().anyRequest().denyAll())
       .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(jwt -> {
         Set<String> roles = new HashSet<>();

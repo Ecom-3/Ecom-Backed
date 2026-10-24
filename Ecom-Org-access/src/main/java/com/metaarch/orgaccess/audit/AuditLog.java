@@ -26,4 +26,9 @@ public class AuditLog {
   public AuditLog(String actor, String action, String target) {
     this.actor = actor; this.action = action; this.target = target;
   }
+  public Long getId() { return id; }
+  public String getActor() { return actor; }
+  public String getAction() { return action; }
+  public String getTarget() { return target; }
+  public Instant getCreatedAt() { return createdAt; }
 }

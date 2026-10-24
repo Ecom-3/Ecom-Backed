@@ -57,12 +57,17 @@ class CartConcurrencyTest {
     assertThat(service.get(cart.id()).totalAmount()).isEqualByComparingTo("0");
   }
 
-  @Test void claimIsDurableRepeatableAndBlocksFurtherMutations() {
+  @Test void claimReplayAllowsUpdatedCheckoutDetailsOnlyWhenCartSnapshotIsUnchanged() {
     var cart=cart(); UUID product=UUID.randomUUID();operations.add(cart.id(),UUID.randomUUID().toString(),item(product,1));
     var claim=new CheckoutCartRequest("a".repeat(64),"test-store",List.of(new CheckoutCartRequest.Line(product,null,1)));
     assertThat(operations.claim(cart.id(),claim).status()).isEqualTo(CartStatus.CHECKED_OUT);
     assertThat(operations.claim(cart.id(),claim).status()).isEqualTo(CartStatus.CHECKED_OUT);
-    assertThatThrownBy(() -> operations.claim(cart.id(),new CheckoutCartRequest("b".repeat(64),"test-store",claim.items())))
+    assertThat(operations.claim(cart.id(),new CheckoutCartRequest("b".repeat(64),"test-store",claim.items())).status())
+      .isEqualTo(CartStatus.CHECKED_OUT);
+    assertThatThrownBy(() -> operations.claim(cart.id(),new CheckoutCartRequest("c".repeat(64),"test-store",
+      List.of(new CheckoutCartRequest.Line(UUID.randomUUID(),null,1)))))
+      .isInstanceOf(com.metaarch.cart.exception.ConflictException.class);
+    assertThatThrownBy(() -> operations.claim(cart.id(),new CheckoutCartRequest("d".repeat(64),"other-store",claim.items())))
       .isInstanceOf(com.metaarch.cart.exception.ConflictException.class);
     assertThatThrownBy(() -> operations.add(cart.id(),UUID.randomUUID().toString(),item(product,1)))
       .isInstanceOf(com.metaarch.cart.exception.InvalidCartStateException.class);

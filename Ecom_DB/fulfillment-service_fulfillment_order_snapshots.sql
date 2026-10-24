@@ -32,7 +32,7 @@ CREATE TABLE `fulfillment_order_snapshots` (
   `shipping_address_id` binary(16) DEFAULT NULL,
   `store_id` varchar(100) NOT NULL,
   PRIMARY KEY (`order_id`),
-  CONSTRAINT `fulfillment_order_snapshots_chk_1` CHECK ((`fulfillment_type` in (_utf8mb4'SHIP_TO_HOME',_utf8mb4'STORE_PICKUP',_utf8mb4'DIGITAL')))
+  CONSTRAINT `fulfillment_order_snapshots_chk_1` CHECK ((`fulfillment_type` in (_utf8mb4'SHIP_TO_HOME',_utf8mb4'STORE_PICKUP',_utf8mb4'GLOBAL',_utf8mb4'DIGITAL')))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

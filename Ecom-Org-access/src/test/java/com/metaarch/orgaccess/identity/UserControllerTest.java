@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -25,7 +26,7 @@ import com.metaarch.orgaccess.security.JwtTokenProvider;
 import com.metaarch.orgaccess.security.OAuth2ProvisioningSuccessHandler;
 import com.metaarch.orgaccess.config.SecurityConfig;
 
-@WebMvcTest(UserController.class)
+@WebMvcTest({UserController.class, StaffProfileController.class})
 @org.springframework.test.context.TestPropertySource(properties = {"spring.cloud.config.enabled=false", "spring.cloud.config.import-check.enabled=false"})
 @Import(SecurityConfig.class)
 class UserControllerTest {
@@ -34,6 +35,53 @@ class UserControllerTest {
   @MockBean JwtTokenProvider tokens;
   @MockBean DatabaseUserDetailsService users;
   @MockBean OAuth2ProvisioningSuccessHandler oauth2SuccessHandler;
+  @MockBean org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+  @Test
+  @WithMockUser(username = "root-admin", authorities = {"ROLE_SUPER_ADMIN"})
+  void superAdminCanUpdateOnlyOwnDisplayNameAndReceivesFreshProfile() throws Exception {
+    when(jdbc.update(contains("UPDATE users SET display_name"), eq("Updated Admin"), eq("root-admin"))).thenReturn(1);
+    when(jdbc.queryForList(contains("CASE WHEN r.name='CUSTOMER'"), eq("root-admin")))
+        .thenReturn(java.util.List.of(java.util.Map.of("id", "1", "username", "root-admin", "name", "Updated Admin", "role", "super-admin")));
+
+    mockMvc.perform(put("/api/users/me/profile/name").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        .content("{\"name\":\" Updated Admin \",\"id\":99,\"role\":\"GLOBAL_ADMIN\"}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Updated Admin"))
+        .andExpect(jsonPath("$.role").value("super-admin"));
+
+    verify(jdbc).update(contains("UPDATE users SET display_name"), eq("Updated Admin"), eq("root-admin"));
+    verify(jdbc).queryForList(contains("CASE WHEN r.name='CUSTOMER'"), eq("root-admin"));
+  }
+
+  @Test
+  @WithMockUser(username = "global-admin", authorities = {"ROLE_GLOBAL_ADMIN"})
+  void globalAdminCanUpdateOnlyOwnDisplayNameAndReceivesFreshProfile() throws Exception {
+    when(jdbc.update(contains("UPDATE users SET display_name"), eq("Updated Global Admin"), eq("global-admin"))).thenReturn(1);
+    when(jdbc.queryForList(contains("CASE WHEN r.name='CUSTOMER'"), eq("global-admin")))
+        .thenReturn(java.util.List.of(java.util.Map.of("id", "2", "username", "global-admin", "name", "Updated Global Admin", "role", "global-admin")));
+    mockMvc.perform(put("/api/users/me/profile/name").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        .content("{\"name\":\"Updated Global Admin\",\"id\":1,\"username\":\"root-admin\"}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Updated Global Admin"));
+    verify(jdbc).update(contains("UPDATE users SET display_name"), eq("Updated Global Admin"), eq("global-admin"));
+  }
+
+  @Test
+  @WithMockUser(username = "customer", authorities = {"ROLE_CUSTOMER"})
+  void customerCannotUpdateAdminName() throws Exception {
+    mockMvc.perform(put("/api/users/me/profile/name").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        .content("{\"name\":\"Changed\"}"))
+        .andExpect(status().isForbidden());
+    verify(jdbc, never()).update(contains("UPDATE users SET display_name"), any(), any());
+  }
+
+  @Test
+  @WithMockUser(username = "global-admin", authorities = {"ROLE_GLOBAL_ADMIN"})
+  void adminNameUpdateRejectsWhitespaceOnlyName() throws Exception {
+    mockMvc.perform(put("/api/users/me/profile/name").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        .content("{\"name\":\"   \"}"))
+        .andExpect(status().isBadRequest());
+    verify(jdbc, never()).update(contains("UPDATE users SET display_name"), any(), any());
+  }
 
   @Test
   @WithMockUser(authorities = {"ROLE_GLOBAL_ADMIN", "PERM_USER_WRITE"})

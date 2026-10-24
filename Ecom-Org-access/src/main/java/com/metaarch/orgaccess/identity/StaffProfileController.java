@@ -19,7 +19,7 @@ public class StaffProfileController {
   @GetMapping
   public Map<String,Object> me(Authentication auth) {
     return jdbc.queryForList("""
-      SELECT CAST(u.id AS CHAR) AS id,u.username,COALESCE(c.full_name,u.display_name) AS name,u.email,u.mobile,u.mobile AS phone,
+      SELECT CAST(u.id AS CHAR) AS id,u.username,CASE WHEN r.name='CUSTOMER' THEN c.full_name ELSE COALESCE(NULLIF(u.display_name,''),c.full_name) END AS name,u.email,u.mobile,u.mobile AS phone,
       u.status,(u.status='Active' AND u.enabled AND NOT u.locked) AS active,u.vehicle_type AS vehicleType,
       u.vehicle_number AS vehicleNumber,u.licence_number AS licenceNumber,u.licence_number AS licenseNumber,
       u.address,u.emergency_contact AS emergencyContact,m.store_id AS storeId,m.store_name AS store,
@@ -34,6 +34,15 @@ public class StaffProfileController {
       @NotBlank @Email @Size(max=255) String email,@NotBlank @Size(max=40) String vehicleNumber,
       @NotBlank @Size(max=40) String vehicleType,@Size(max=60) String licenseNumber,
       @Size(max=700) String address,@Size(max=30) String emergencyContact) {}
+  public record SuperAdminNameRequest(@NotBlank @Size(max=180) String name) {}
+  @PutMapping("/profile/name")
+  @PreAuthorize("hasAnyRole('SUPER_ADMIN','GLOBAL_ADMIN')")
+  @Transactional
+  public Map<String,Object> updateSuperAdminName(@Valid @RequestBody SuperAdminNameRequest request,Authentication auth) {
+    int changed=jdbc.update("UPDATE users SET display_name=? WHERE username=?",request.name().trim(),auth.getName());
+    if(changed==0) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Account not found.");
+    return me(auth);
+  }
   @PutMapping
   @PreAuthorize("hasRole('DELIVERY_PARTNER')")
   @Transactional

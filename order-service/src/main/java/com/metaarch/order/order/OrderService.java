@@ -19,12 +19,20 @@ public class OrderService {
   private final OrderItemRepository items;
   private final OrderEventPublisher events;
   private final CatalogDeliveryQuoteClient catalogDeliveryQuoteClient;
+  private final GlobalStoreAssignmentCatalogClient assignmentCatalog;
+  private final GlobalStoreAssignmentInventoryClient assignmentInventory;
+  private final FulfillmentLifecycleVerifier fulfillmentLifecycle;
 
-  public OrderService(OrderRepository orders, OrderItemRepository items, OrderEventPublisher events, CatalogDeliveryQuoteClient catalogDeliveryQuoteClient) {
+  public OrderService(OrderRepository orders, OrderItemRepository items, OrderEventPublisher events, CatalogDeliveryQuoteClient catalogDeliveryQuoteClient,
+      GlobalStoreAssignmentCatalogClient assignmentCatalog, GlobalStoreAssignmentInventoryClient assignmentInventory,
+      FulfillmentLifecycleVerifier fulfillmentLifecycle) {
     this.orders = orders;
     this.items = items;
     this.events = events;
     this.catalogDeliveryQuoteClient = catalogDeliveryQuoteClient;
+    this.assignmentCatalog = assignmentCatalog;
+    this.assignmentInventory = assignmentInventory;
+    this.fulfillmentLifecycle = fulfillmentLifecycle;
   }
 
   @Transactional
@@ -106,10 +114,70 @@ public class OrderService {
   @Transactional
   public OrderResponse updateStatus(UUID orderId, UpdateOrderStatusRequest request) {
     Order order = orders.findLockedById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    if (request.status() == OrderStatus.SHIPPED && order.getStatus() == OrderStatus.SHIPPED
+        && !fulfillmentLifecycle.shipmentHasStatus(orderId, Set.of("IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED")))
+      throw new InvalidOrderStateException("A persisted shipment is required for an order marked shipped");
+    if (request.status() == OrderStatus.SHIPPED && order.getStatus() != OrderStatus.SHIPPED && !fulfillmentLifecycle.shipmentIs(orderId, "IN_TRANSIT"))
+      throw new InvalidOrderStateException("An in-transit shipment is required before marking an order shipped");
+    if (request.status() == OrderStatus.DELIVERED && !fulfillmentLifecycle.shipmentIs(orderId, "DELIVERED"))
+      throw new InvalidOrderStateException("A delivered shipment is required before marking an order delivered");
     if (order.getStatus() == request.status()) return OrderResponse.from(order);
     transition(order, request.status());
     events.publish(OrderEventType.ORDER_STATUS_UPDATED, order);
     return OrderResponse.from(order);
+  }
+
+  @Transactional
+  public OrderResponse assignGlobalStore(UUID orderId, String storeId) {
+    Order order = orders.findLockedById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    if (!isGlobalOrder(order)) throw new IllegalArgumentException("Only Global Store orders can be assigned to a stocked store");
+    if (order.getGlobalAssignedStoreId() != null || "Approved".equalsIgnoreCase(order.getGlobalApproval()))
+      throw new ConflictException("This global order has already been assigned");
+    GlobalStoreAssignmentCatalogClient.Store store;
+    try { store = assignmentCatalog.store(storeId.trim()); }
+    catch (org.springframework.web.client.HttpClientErrorException.NotFound error) { throw new IllegalArgumentException("Selected store was not found"); }
+    if (store == null || !store.active() || !"Active".equalsIgnoreCase(store.status()))
+      throw new IllegalArgumentException("Selected store is inactive");
+    if (order.getItems().isEmpty()) throw new IllegalArgumentException("Global order has no items to assign");
+    for (OrderItem item : order.getItems()) {
+      GlobalStoreAssignmentInventoryClient.Inventory stock;
+      try { stock = assignmentInventory.inventory(item.getProductId(), item.getVariantId(), store.id()); }
+      catch (org.springframework.web.client.HttpClientErrorException.NotFound error) { throw new ConflictException("Selected store does not have stock for every order item"); }
+      if (stock == null || !store.id().equals(stock.storeId()) || !"ACTIVE".equalsIgnoreCase(stock.status()) || stock.availableQuantity() < item.getQuantity())
+        throw new ConflictException("Selected store does not have enough active stock for every order item");
+    }
+    order.setGlobalAssignedStoreId(store.id());
+    order.setGlobalAssignedAt(Instant.now());
+    order.setGlobalApproval("Approved");
+    order.setStatus(OrderStatus.CONFIRMED);
+    events.publish(OrderEventType.ORDER_STATUS_UPDATED, order);
+    return OrderResponse.from(order);
+  }
+
+  @Transactional(readOnly = true)
+  public List<GlobalStoreAssignmentOption> globalStoreAssignmentOptions(UUID orderId) {
+    Order order = find(orderId);
+    if (!isGlobalOrder(order)) throw new IllegalArgumentException("Only Global Store orders can be assigned to a stocked store");
+    List<GlobalStoreAssignmentOption> options = new ArrayList<>();
+    for (GlobalStoreAssignmentCatalogClient.Store store : assignmentCatalog.activeStores()) {
+      List<GlobalStoreAssignmentOption.ItemAvailability> availability = new ArrayList<>();
+      boolean allAvailable = !order.getItems().isEmpty();
+      for (OrderItem item : order.getItems()) {
+        GlobalStoreAssignmentInventoryClient.Inventory stock;
+        try { stock = assignmentInventory.inventory(item.getProductId(), item.getVariantId(), store.id()); }
+        catch (org.springframework.web.client.HttpClientErrorException.NotFound missing) { stock = null; }
+        int quantity = stock == null ? 0 : stock.availableQuantity();
+        boolean available = stock != null && "ACTIVE".equalsIgnoreCase(stock.status()) && quantity >= item.getQuantity();
+        availability.add(new GlobalStoreAssignmentOption.ItemAvailability(item.getProductName(), item.getQuantity(), quantity, available));
+        allAvailable &= available;
+      }
+      if (allAvailable) options.add(new GlobalStoreAssignmentOption(store.id(), availability));
+    }
+    return options;
+  }
+
+  private boolean isGlobalOrder(Order order) {
+    return "global-store".equalsIgnoreCase(order.getStoreId());
   }
 
   @Transactional
@@ -148,6 +216,32 @@ public class OrderService {
       throw new InvalidOrderStateException("Invalid verified payment transition");
     }
     order.setPaymentStatus(next);
+    events.publish(OrderEventType.ORDER_STATUS_UPDATED, order);
+  }
+
+  @Transactional
+  public void applyVerifiedDelivery(FulfillmentEvent event) {
+    if (!"SHIPMENT_DELIVERED".equals(event.eventType()) || !"DELIVERED".equals(event.shipmentStatus())
+        || !"DELIVERED".equals(event.fulfillmentStatus()) || event.eventId() == null
+        || event.orderId() == null || event.fulfillmentId() == null || event.shipmentId() == null
+        || event.occurredAt() == null) {
+      throw new InvalidOrderStateException("Delivery confirmation is incomplete");
+    }
+    applyVerifiedShipmentDelivery(new FulfillmentDeliveryClient.DeliveryEvidence(event.orderId(), event.customerId(), event.storeId(), event.fulfillmentId(), event.shipmentId(), event.occurredAt()));
+  }
+  @Transactional
+  public void applyVerifiedShipmentDelivery(FulfillmentDeliveryClient.DeliveryEvidence evidence) {
+    if (evidence.orderId() == null || evidence.fulfillmentId() == null || evidence.shipmentId() == null || evidence.deliveredAt() == null)
+      throw new InvalidOrderStateException("Delivery confirmation is incomplete");
+    Order order = orders.findLockedById(evidence.orderId()).orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    if (evidence.customerId() == null || !evidence.customerId().equals(order.getCustomerId()) || evidence.storeId() == null || !evidence.storeId().equals(order.getStoreId()))
+      throw new InvalidOrderStateException("Delivery confirmation does not match order");
+    if (order.getStatus() == OrderStatus.CANCELLED)
+      throw new InvalidOrderStateException("Cancelled orders cannot be marked delivered");
+    if (order.getStatus() == OrderStatus.DELIVERED) return;
+    // Authenticated fulfillment delivery is authoritative even if intermediate
+    // order status updates were missed. Payment status is intentionally untouched.
+    order.setStatus(OrderStatus.DELIVERED);
     events.publish(OrderEventType.ORDER_STATUS_UPDATED, order);
   }
 

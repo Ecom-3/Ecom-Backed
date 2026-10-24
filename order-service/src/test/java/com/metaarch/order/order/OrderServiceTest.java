@@ -20,6 +20,7 @@ class OrderServiceTest {
   @Mock OrderItemRepository items;
   @Mock OrderEventPublisher events;
   @Mock CatalogDeliveryQuoteClient catalogDeliveryQuoteClient;
+  @Mock FulfillmentLifecycleVerifier fulfillmentLifecycle;
   @InjectMocks OrderService service;
 
   @BeforeEach void stubCatalogItems() {
@@ -117,6 +118,92 @@ class OrderServiceTest {
     when(orders.findLockedById(orderId)).thenReturn(Optional.of(order));
 
     assertThatThrownBy(() -> service.updateStatus(orderId, new UpdateOrderStatusRequest(OrderStatus.DELIVERED))).isInstanceOf(InvalidOrderStateException.class);
+  }
+
+  @Test
+  void updateStatusRejectsShippingWithoutPersistedInTransitShipment() {
+    UUID orderId = UUID.randomUUID();
+    Order order = new Order(UUID.randomUUID(), UUID.randomUUID(), "store-1", "ORD-TEST");
+    order.setStatus(OrderStatus.PROCESSING);
+    when(orders.findLockedById(orderId)).thenReturn(Optional.of(order));
+    when(fulfillmentLifecycle.shipmentIs(orderId, "IN_TRANSIT")).thenReturn(false);
+
+    assertThatThrownBy(() -> service.updateStatus(orderId, new UpdateOrderStatusRequest(OrderStatus.SHIPPED)))
+      .isInstanceOf(InvalidOrderStateException.class)
+      .hasMessage("An in-transit shipment is required before marking an order shipped");
+    verify(events, never()).publish(any(), any());
+  }
+
+  @Test
+  void updateStatusRejectsDeliveryWithoutPersistedDeliveredShipment() {
+    UUID orderId = UUID.randomUUID();
+    Order order = new Order(UUID.randomUUID(), UUID.randomUUID(), "store-1", "ORD-TEST");
+    order.setStatus(OrderStatus.SHIPPED);
+    when(orders.findLockedById(orderId)).thenReturn(Optional.of(order));
+    when(fulfillmentLifecycle.shipmentIs(orderId, "DELIVERED")).thenReturn(false);
+
+    assertThatThrownBy(() -> service.updateStatus(orderId, new UpdateOrderStatusRequest(OrderStatus.DELIVERED)))
+      .isInstanceOf(InvalidOrderStateException.class)
+      .hasMessage("A delivered shipment is required before marking an order delivered");
+    verify(events, never()).publish(any(), any());
+  }
+
+  @Test
+  void updateStatusAllowsShippingWhenPersistedInTransitShipmentExists() {
+    UUID orderId = UUID.randomUUID();
+    Order order = new Order(UUID.randomUUID(), UUID.randomUUID(), "store-1", "ORD-SHIP-VERIFIED");
+    order.setStatus(OrderStatus.PROCESSING);
+    when(orders.findLockedById(orderId)).thenReturn(Optional.of(order));
+    when(fulfillmentLifecycle.shipmentIs(orderId, "IN_TRANSIT")).thenReturn(true);
+
+    service.updateStatus(orderId, new UpdateOrderStatusRequest(OrderStatus.SHIPPED));
+
+    assertThat(order.getStatus()).isEqualTo(OrderStatus.SHIPPED);
+    verify(fulfillmentLifecycle).shipmentIs(orderId, "IN_TRANSIT");
+    verify(events).publish(OrderEventType.ORDER_STATUS_UPDATED, order);
+  }
+
+  @Test
+  void updateStatusAllowsDeliveryWhenPersistedDeliveredShipmentExists() {
+    UUID orderId = UUID.randomUUID();
+    Order order = new Order(UUID.randomUUID(), UUID.randomUUID(), "store-1", "ORD-DELIVER-VERIFIED");
+    order.setStatus(OrderStatus.SHIPPED);
+    when(orders.findLockedById(orderId)).thenReturn(Optional.of(order));
+    when(fulfillmentLifecycle.shipmentIs(orderId, "DELIVERED")).thenReturn(true);
+
+    service.updateStatus(orderId, new UpdateOrderStatusRequest(OrderStatus.DELIVERED));
+
+    assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERED);
+    verify(fulfillmentLifecycle).shipmentIs(orderId, "DELIVERED");
+    verify(events).publish(OrderEventType.ORDER_STATUS_UPDATED, order);
+  }
+
+  @Test
+  void updateStatusRejectsIdempotentShippedStatusWhenShipmentIsMissing() {
+    UUID orderId = UUID.randomUUID();
+    Order order = new Order(UUID.randomUUID(), UUID.randomUUID(), "store-1", "ORD-SHIP-HISTORICAL");
+    order.setStatus(OrderStatus.SHIPPED);
+    when(orders.findLockedById(orderId)).thenReturn(Optional.of(order));
+    when(fulfillmentLifecycle.shipmentHasStatus(orderId, java.util.Set.of("IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"))).thenReturn(false);
+
+    assertThatThrownBy(() -> service.updateStatus(orderId, new UpdateOrderStatusRequest(OrderStatus.SHIPPED)))
+      .isInstanceOf(InvalidOrderStateException.class)
+      .hasMessage("A persisted shipment is required for an order marked shipped");
+    verify(events, never()).publish(any(), any());
+  }
+
+  @Test
+  void updateStatusRejectsIdempotentDeliveredStatusWhenShipmentIsMissing() {
+    UUID orderId = UUID.randomUUID();
+    Order order = new Order(UUID.randomUUID(), UUID.randomUUID(), "store-1", "ORD-DELIVER-HISTORICAL");
+    order.setStatus(OrderStatus.DELIVERED);
+    when(orders.findLockedById(orderId)).thenReturn(Optional.of(order));
+    when(fulfillmentLifecycle.shipmentIs(orderId, "DELIVERED")).thenReturn(false);
+
+    assertThatThrownBy(() -> service.updateStatus(orderId, new UpdateOrderStatusRequest(OrderStatus.DELIVERED)))
+      .isInstanceOf(InvalidOrderStateException.class)
+      .hasMessage("A delivered shipment is required before marking an order delivered");
+    verify(events, never()).publish(any(), any());
   }
 
   @Test

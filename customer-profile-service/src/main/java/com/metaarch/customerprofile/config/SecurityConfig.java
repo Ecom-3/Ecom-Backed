@@ -17,6 +17,7 @@ public class SecurityConfig {
     return http.csrf(csrf -> csrf.disable()).authorizeHttpRequests(auth -> auth
       .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
       .requestMatchers("/api/v1/profiles/me", "/api/v1/profiles/me/**").authenticated()
+      .requestMatchers("/api/v1/admin/customers/**").hasAnyRole("SUPER_ADMIN", "GLOBAL_ADMIN")
       .requestMatchers("/api/v1/profiles/**").hasAnyRole("ADMIN", "SUPER_ADMIN", "GLOBAL_ADMIN")
       .anyRequest().denyAll())
       .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(authorities()))).build();

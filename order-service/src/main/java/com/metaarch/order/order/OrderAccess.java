@@ -11,7 +11,37 @@ public class OrderAccess {
   private final OrderRepository orders;
   public OrderAccess(OrderRepository orders) { this.orders = orders; }
   public boolean admin() { return PublicApiSecurity.administrator(); }
+  public boolean globalAssignment() {
+    var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+    return authentication instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken token
+        && token.getAuthorities().stream().anyMatch(authority -> java.util.Set.of("ROLE_SUPER_ADMIN", "ROLE_GLOBAL_ADMIN").contains(authority.getAuthority()));
+  }
+  public boolean reviewModerator() {
+    var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+    return authentication instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken token
+        && !"customer".equals(token.getToken().getClaimAsString("accountType"))
+        && token.getAuthorities().stream().anyMatch(authority -> java.util.Set.of("ROLE_SUPER_ADMIN", "ROLE_GLOBAL_ADMIN").contains(authority.getAuthority()));
+  }
+  public UUID currentCustomerId() {
+    var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+    if (!(authentication instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken token)
+        || !"customer".equals(token.getToken().getClaimAsString("accountType"))) return null;
+    try { return UUID.fromString(token.getToken().getClaimAsString("customerId")); }
+    catch (RuntimeException error) { return null; }
+  }
+  public boolean customerReviewReader() { return currentCustomerId() != null; }
+  public boolean superAdmin() {
+    var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+    return authentication instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken token
+        && token.getAuthorities().stream().anyMatch(authority -> authority.getAuthority().equals("ROLE_SUPER_ADMIN"));
+  }
   public boolean customer(UUID id) { return admin() || PublicApiSecurity.owns(id); }
+  public boolean customerOwner(UUID orderId) {
+    var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+    return authentication instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken token
+        && "customer".equals(token.getToken().getClaimAsString("accountType"))
+        && orders.findById(orderId).map(order -> PublicApiSecurity.owns(order.getCustomerId())).orElse(false);
+  }
   @org.springframework.beans.factory.annotation.Value("${FULFILLMENT_SERVICE_URL:http://127.0.0.1:3315}")
   private String fulfillmentUrl="http://127.0.0.1:3315";
   private boolean assignedPartner(UUID id) {

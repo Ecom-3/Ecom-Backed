@@ -29,6 +29,8 @@ public class Order extends AuditedEntity {
   @Column(name = "delivery_method", length = 80) private String deliveryMethod;
   @Column(name = "fulfillment_type", length = 40) private String fulfillmentType;
   @Column(name = "global_approval", length = 40) private String globalApproval;
+  @Column(name = "global_assigned_store_id", length = 100) private String globalAssignedStoreId;
+  @Column(name = "global_assigned_at") private java.time.Instant globalAssignedAt;
   @Column(name = "delivery_charge", nullable = false, precision = 10, scale = 2) private BigDecimal deliveryCharge = BigDecimal.ZERO;
   @Column(name = "estimated_delivery_min") private Integer estimatedDeliveryMin;
   @Column(name = "estimated_delivery_max") private Integer estimatedDeliveryMax;
@@ -90,6 +92,10 @@ public class Order extends AuditedEntity {
   public void setFulfillmentType(String fulfillmentType) { this.fulfillmentType = fulfillmentType; }
   public String getGlobalApproval() { return globalApproval; }
   public void setGlobalApproval(String globalApproval) { this.globalApproval = globalApproval; }
+  public String getGlobalAssignedStoreId() { return globalAssignedStoreId; }
+  public void setGlobalAssignedStoreId(String globalAssignedStoreId) { this.globalAssignedStoreId = globalAssignedStoreId; }
+  public java.time.Instant getGlobalAssignedAt() { return globalAssignedAt; }
+  public void setGlobalAssignedAt(java.time.Instant globalAssignedAt) { this.globalAssignedAt = globalAssignedAt; }
   public BigDecimal getDeliveryCharge() { return deliveryCharge; }
   public void setDeliveryCharge(BigDecimal deliveryCharge) { this.deliveryCharge = deliveryCharge; }
   public Integer getEstimatedDeliveryMin() { return estimatedDeliveryMin; }

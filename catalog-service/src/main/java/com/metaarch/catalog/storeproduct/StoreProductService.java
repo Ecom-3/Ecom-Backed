@@ -5,14 +5,16 @@ import java.util.*; import com.metaarch.catalog.exception.*; import com.metaarch
  @Transactional public StoreProductResponse create(StoreProductRequest r){
   String store=clean(r.storeId());
   if(mappings.existsByStoreIdAndProductId(store,r.productId())) throw new ConflictException("Store-product mapping already exists");
-  StoreProduct m=new StoreProduct(store,products.find(r.productId()));
+  var product=products.find(r.productId());
+  ensureGlobalEligibility(store,product);
+  StoreProduct m=new StoreProduct(store,product);
   apply(m,r);
   return StoreProductResponse.from(mappings.save(m));
  }
  @Transactional(readOnly=true) public StoreProductResponse get(UUID id){return StoreProductResponse.from(find(id));}
  @Transactional(readOnly=true) public List<StoreProductResponse> list(String storeId,UUID productId){
-  if(storeId!=null&&productId!=null) return mappings.findByStoreId(storeId).stream().filter(m->m.getProduct().getId().equals(productId)).map(StoreProductResponse::from).toList();
-  if(storeId!=null) return mappings.findByStoreId(storeId).stream().map(StoreProductResponse::from).toList();
+  if(storeId!=null&&productId!=null) return mappings.findByStoreId(storeId).stream().filter(m->m.getProduct().getId().equals(productId)&&eligibleForStore(storeId,m.getProduct())).map(StoreProductResponse::from).toList();
+  if(storeId!=null) return mappings.findByStoreId(storeId).stream().filter(m->eligibleForStore(storeId,m.getProduct())).map(StoreProductResponse::from).toList();
   if(productId!=null) return mappings.findByProductId(productId).stream().map(StoreProductResponse::from).toList();
   return mappings.findAll().stream().map(StoreProductResponse::from).toList();
  }
@@ -20,8 +22,10 @@ import java.util.*; import com.metaarch.catalog.exception.*; import com.metaarch
   StoreProduct m=find(id);
   String store=clean(r.storeId());
   if(mappings.existsByStoreIdAndProductIdAndIdNot(store,r.productId(),id)) throw new ConflictException("Store-product mapping already exists");
+  var product=products.find(r.productId());
+  ensureGlobalEligibility(store,product);
   m.setStoreId(store);
-  m.setProduct(products.find(r.productId()));
+  m.setProduct(product);
   apply(m,r);
   return StoreProductResponse.from(m);
  }
@@ -29,6 +33,8 @@ import java.util.*; import com.metaarch.catalog.exception.*; import com.metaarch
  private StoreProduct find(UUID id){return mappings.findById(id).orElseThrow(()->new ResourceNotFoundException("Store-product mapping not found: "+id));}
  private void apply(StoreProduct m,StoreProductRequest r){m.setStoreName(storeName(r.storeId(),r.storeName()));m.setAvailable(r.available());m.setPriceOverride(r.priceOverride());}
  private String clean(String v){return v.trim();}
+ private boolean eligibleForStore(String storeId,com.metaarch.catalog.product.Product product){return !"global-store".equalsIgnoreCase(storeId)||product.isGlobalProduct();}
+ private void ensureGlobalEligibility(String storeId,com.metaarch.catalog.product.Product product){if(!eligibleForStore(storeId,product))throw new ConflictException("Products must be enabled for global delivery before they can be mapped to the Global Store");}
  private String storeName(String storeId,String storeName){
   String value=storeName==null?"":storeName.trim();
   if(!value.isBlank()) return value;

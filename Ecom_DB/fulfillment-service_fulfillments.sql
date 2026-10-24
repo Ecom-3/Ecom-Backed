@@ -34,7 +34,7 @@ CREATE TABLE `fulfillments` (
   `store_id` varchar(100) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `UK_rksk0lb23na52f941uubcuea2` (`order_id`),
-  CONSTRAINT `fulfillments_chk_1` CHECK ((`fulfillment_type` in (_utf8mb4'SHIP_TO_HOME',_utf8mb4'STORE_PICKUP',_utf8mb4'DIGITAL'))),
+  CONSTRAINT `fulfillments_chk_1` CHECK ((`fulfillment_type` in (_utf8mb4'SHIP_TO_HOME',_utf8mb4'STORE_PICKUP',_utf8mb4'GLOBAL',_utf8mb4'DIGITAL'))),
   CONSTRAINT `fulfillments_chk_2` CHECK ((`status` in (_utf8mb4'PENDING',_utf8mb4'ALLOCATED',_utf8mb4'PACKING',_utf8mb4'READY_TO_SHIP',_utf8mb4'SHIPPED',_utf8mb4'DELIVERED',_utf8mb4'CANCELLED',_utf8mb4'FAILED')))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
