@@ -72,7 +72,7 @@ class OrderServiceTest {
       UUID.randomUUID(), UUID.randomUUID(), "global-store",
       List.of(new CreateOrderItemRequest(UUID.randomUUID(), null, "Global spice", 1, new BigDecimal("219.00"))),
       List.of(new CreateOrderAddressRequest(AddressType.SHIPPING, "Line 1", null, "Hyderabad", "Telangana", "India", "500001", null, null)),
-      null, null, PaymentStatus.PENDING, null, null, null, null, null, null, null, null, null,
+      null, null, PaymentStatus.PENDING, null, null, null, null, null, null, null, null, null, null,
       "global", "global", null, BigDecimal.ZERO, null, null, null, false, null, null, null, null, null);
 
     OrderResponse response = service.create(request);
