@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableMethodSecurity
@@ -43,6 +44,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/api/auth/validate", "/api/auth/me")
                     .authenticated()
+                    .requestMatchers(HttpMethod.POST, "/api/delivery-partners")
+                    .hasAnyRole("STORE_MANAGER", "LOCATION_ADMIN")
                     .anyRequest()
                     .authenticated());
 

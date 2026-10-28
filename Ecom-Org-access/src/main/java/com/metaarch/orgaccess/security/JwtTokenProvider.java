@@ -52,6 +52,23 @@ public class JwtTokenProvider {
       .compact();
   }
 
+  /** Short-lived, order-bound credential used only by Delivery Operations when forwarding
+   * a server-validated partner action to Fulfillment. It is never returned to a browser. */
+  public String generateDeliveryActionToken(String partnerId, String orderId) {
+    Instant now = Instant.now();
+    return Jwts.builder().setId(java.util.UUID.randomUUID().toString())
+      .setSubject("delivery-operations")
+      .setIssuer(properties.getIssuer())
+      .claim(ROLES, List.of("ROLE_DELIVERY_PARTNER"))
+      .claim("deliveryPartnerId", partnerId)
+      .claim("deliveryActionOrderId", orderId)
+      .claim("deliveryActionProxy", true)
+      .setIssuedAt(Date.from(now))
+      .setExpiration(Date.from(now.plusSeconds(30)))
+      .signWith(signingKey)
+      .compact();
+  }
+
     public String generateToken(UserAccount user) {
     List<String> authorities = identities.authorities(user).stream()
       .map(GrantedAuthority::getAuthority).toList();
@@ -82,7 +99,10 @@ public class JwtTokenProvider {
       return rows.size()==1 && ((Number)rows.get(0).get("token_version")).longValue()==((Number)claims.get(TOKEN_VERSION)).longValue()
         && db.queryForObject("SELECT COUNT(*) FROM revoked_tokens WHERE token_hash=?",Integer.class,com.metaarch.orgaccess.customer.CustomerAccountController.hash(token))==0;
     }
-    UserAccount user=identities.requireUser(claims.getSubject());
+    UserAccount user;
+    try { user=identities.requireUser(claims.getSubject()); }
+    catch (org.springframework.security.core.userdetails.UsernameNotFoundException unavailable) { return false; }
+    if (!user.isEnabled() || user.isLocked()) return false;
     Object version=claims.get(TOKEN_VERSION);
     if ((version instanceof Number number ? number.longValue() : 0)!=user.getTokenVersion()) return false;
     return db.queryForObject("SELECT COUNT(*) FROM revoked_tokens WHERE token_hash=?",Integer.class,com.metaarch.orgaccess.customer.CustomerAccountController.hash(token))==0;

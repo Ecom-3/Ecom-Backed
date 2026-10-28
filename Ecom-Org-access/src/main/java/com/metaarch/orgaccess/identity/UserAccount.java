@@ -74,6 +74,7 @@ public class UserAccount {
   @Column(name = "token_version", nullable = false)
   private long tokenVersion;
   public long getTokenVersion() { return tokenVersion; }
+  public void incrementTokenVersion() { tokenVersion++; }
 
   public Long getId() { return id; }
   public String getUsername() { return username; }

@@ -25,8 +25,16 @@ public class StoreService {
 
   @Transactional(readOnly = true)
   public List<StoreResponse> list(Boolean active) {
-    List<Store> result = active == null ? stores.findAll() : stores.findByActive(active);
+    List<Store> result = (active == null ? stores.findAll() : stores.findByActive(active)).stream()
+        .filter(store -> !store.getId().startsWith("location-")).toList();
     return result.stream().map(StoreResponse::from).toList();
+  }
+
+  @Transactional(readOnly = true)
+  public List<StoreResponse> listLocations(Boolean active) {
+    return (active == null ? stores.findAll() : stores.findByActive(active)).stream()
+        .filter(store -> store.getId().startsWith("location-"))
+        .map(StoreResponse::from).toList();
   }
 
   @Transactional(readOnly = true)

@@ -57,6 +57,7 @@ public class StoreDeliveryService {
   public void deleteZone(String storeId, Long id) {
     requireStore(storeId);
     StoreDeliveryZone zone = zones.findById(id).filter(item -> item.getStoreId().equals(storeId)).orElseThrow(() -> new ResourceNotFoundException("Delivery zone not found: " + id));
+    methods.deleteByZoneId(zone.getId());
     zones.delete(zone);
   }
 

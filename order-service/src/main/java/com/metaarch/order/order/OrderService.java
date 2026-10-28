@@ -87,7 +87,7 @@ public class OrderService {
     }
     applyVerifiedDeliverySnapshot(order, request, itemSubtotal(order));
     resolveDeliveryZoneLocation(order, request);
-    order.setHandlingFee(new BigDecimal("5.00"));
+    order.setHandlingFee(isGlobal(request) ? BigDecimal.ZERO : new BigDecimal("5.00"));
     addresses.forEach(address -> order.addAddress(new OrderAddress(address.addressType(), address.addressLine1().trim(), trimToNull(address.addressLine2()), address.city().trim(), address.state().trim(), address.country().trim(), address.postalCode().trim(), trimToNull(address.recipientName()), trimToNull(address.recipientPhone()))));
     calculate(order);
     return order;
@@ -104,6 +104,12 @@ public class OrderService {
         ? orders.findAllByOrderByCreatedAtDesc()
         : orders.findByStoreIdOrderByCreatedAtDesc(storeId.trim());
     return rows.stream().map(OrderResponse::from).toList();
+  }
+
+  @Transactional(readOnly = true)
+  public List<OrderResponse> listStores(java.util.Collection<String> storeIds) {
+    if (storeIds == null || storeIds.isEmpty()) return List.of();
+    return orders.findByStoreIdInOrderByCreatedAtDesc(storeIds).stream().map(OrderResponse::from).toList();
   }
 
   @Transactional(readOnly = true)

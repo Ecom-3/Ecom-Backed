@@ -59,6 +59,29 @@ class OrderServiceTest {
   }
 
   @Test
+  void globalOrderHasNoLocalStoreHandlingFee() {
+    when(orders.existsByOrderNumber(anyString())).thenReturn(false);
+    when(orders.save(any(Order.class))).thenAnswer(invocation -> {
+      Order order = invocation.getArgument(0);
+      ReflectionTestUtils.setField(order, "id", UUID.randomUUID());
+      order.getItems().forEach(item -> ReflectionTestUtils.setField(item, "id", UUID.randomUUID()));
+      order.getAddresses().forEach(address -> ReflectionTestUtils.setField(address, "id", UUID.randomUUID()));
+      return order;
+    });
+    CreateOrderRequest request = new CreateOrderRequest(
+      UUID.randomUUID(), UUID.randomUUID(), "global-store",
+      List.of(new CreateOrderItemRequest(UUID.randomUUID(), null, "Global spice", 1, new BigDecimal("219.00"))),
+      List.of(new CreateOrderAddressRequest(AddressType.SHIPPING, "Line 1", null, "Hyderabad", "Telangana", "India", "500001", null, null)),
+      null, null, PaymentStatus.PENDING, null, null, null, null, null, null, null, null, null,
+      "global", "global", null, BigDecimal.ZERO, null, null, null, false, null, null, null, null, null);
+
+    OrderResponse response = service.create(request);
+
+    assertThat(response.handlingFee()).isEqualByComparingTo("0.00");
+    assertThat(response.totalAmount()).isEqualByComparingTo("219.00");
+  }
+
+  @Test
   void createReverifiesRequestDeliverySnapshotWithCatalog() {
     when(orders.existsByOrderNumber(anyString())).thenReturn(false);
     when(orders.save(any(Order.class))).thenAnswer(invocation -> {
