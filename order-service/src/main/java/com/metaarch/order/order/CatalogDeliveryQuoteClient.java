@@ -71,6 +71,21 @@ public class CatalogDeliveryQuoteClient {
     }
   }
 
+  public DeliveryZoneLocation resolveStoreLocation(String storeId) {
+    try {
+      URI uri = URI.create(baseUrl + "/api/v1/stores/" + storeId + "/delivery-location");
+      DeliveryZoneLocation location = restClient.get().uri(uri).retrieve().body(DeliveryZoneLocation.class);
+      if (location == null || location.locationId() == null || location.locationId().isBlank()) {
+        throw new DeliveryQuoteVerificationException("Store has no authoritative delivery location mapping: " + storeId);
+      }
+      return location;
+    } catch (DeliveryQuoteVerificationException ex) {
+      throw ex;
+    } catch (Exception ex) {
+      throw new DeliveryQuoteVerificationException("Unable to resolve store delivery location right now. Please try again.", ex);
+    }
+  }
+
   public CouponPromotion validateCoupon(String code, BigDecimal subtotal, String location, String store) {
     try {
       CouponPromotion promotion=restClient.post().uri(baseUrl+"/api/v1/coupons/validate")

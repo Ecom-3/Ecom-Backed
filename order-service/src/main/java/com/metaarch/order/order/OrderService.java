@@ -329,7 +329,9 @@ public class OrderService {
   private void resolveDeliveryZoneLocation(Order order, CreateOrderRequest request) {
     if (order.getDeliveryZoneId() == null) {
       if (isGlobal(request) || isPickup(request)) return;
-      throw new DeliveryQuoteVerificationException("Delivery zone is required for this order.");
+      CatalogDeliveryQuoteClient.DeliveryZoneLocation location = catalogDeliveryQuoteClient.resolveStoreLocation(order.getStoreId());
+      order.setLocationId(location.locationId().trim());
+      return;
     }
     CatalogDeliveryQuoteClient.DeliveryZoneLocation location = catalogDeliveryQuoteClient.resolveLocation(order.getDeliveryZoneId());
     order.setLocationId(location.locationId().trim());

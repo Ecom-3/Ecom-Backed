@@ -72,11 +72,20 @@ public class StoreDeliveryService {
     }
     OpenRouteServiceClient.RouteResult route = routes.drivingRoute(store.getLatitude(), store.getLongitude(), customerLatitude, customerLongitude);
     BigDecimal distance = route.distanceKm();
+    BigDecimal radiusDistance = straightLineDistanceKm(store.getLatitude(), store.getLongitude(), customerLatitude, customerLongitude);
     boolean pickupAvailable = store.isPickupEnabled() && ACTIVE_STATUS.equalsIgnoreCase(store.getStatus());
+    if (store.getDeliveryRadiusKm() != null && store.getDeliveryRadiusKm().signum() > 0
+        && radiusDistance.compareTo(store.getDeliveryRadiusKm()) > 0) {
+      return outsideDeliveryRadius(store, customerLatitude, customerLongitude, route, deliveryMethod, pickupAvailable);
+    }
     StoreDeliveryZone zone = zones.findByStoreIdOrderByMinRadiusKmAsc(storeId).stream()
       .filter(item -> ACTIVE_STATUS.equalsIgnoreCase(item.getStatus()))
       .filter(item -> distance.compareTo(item.getMinRadiusKm()) >= 0 && distance.compareTo(item.getMaxRadiusKm()) <= 0)
       .findFirst().orElse(null);
+    if (zone == null && store.getDeliveryRadiusKm() != null && store.getDeliveryRadiusKm().signum() > 0
+        && radiusDistance.compareTo(store.getDeliveryRadiusKm()) <= 0 && store.isDeliveryEnabled() && ACTIVE_STATUS.equalsIgnoreCase(store.getStatus())) {
+      return storeRadiusQuote(store, customerLatitude, customerLongitude, route, orderTotal, deliveryMethod, pickupAvailable);
+    }
     if (zone == null || !store.isDeliveryEnabled() || !ACTIVE_STATUS.equalsIgnoreCase(store.getStatus())) {
       List<StoreDeliveryMethodResponse> pickupMethods = methods.findByStoreIdOrderByDeliveryTypeAsc(storeId).stream()
         .filter(StoreDeliveryMethod::isEnabled)
@@ -98,8 +107,64 @@ public class StoreDeliveryService {
     BigDecimal charge = selected != null && selected.deliveryCharge() != null ? selected.deliveryCharge() : zone.getDeliveryCharge();
     boolean freeDeliveryApplied = orderTotal != null && zone.getFreeDeliveryAbove() != null && orderTotal.compareTo(zone.getFreeDeliveryAbove()) >= 0 && !isPickup(selectedMethod);
     if (freeDeliveryApplied || isPickup(selectedMethod)) charge = BigDecimal.ZERO;
-    boolean methodAvailable = selectedMethod == null || selected != null;
+    boolean methodAvailable = selected != null;
     return new DeliveryQuoteResponse(storeId, store.getLatitude(), store.getLongitude(), customerLatitude, customerLongitude, methodAvailable, distance, route.distanceMeters(), route.durationSeconds(), route.durationMinutes(), matchedZoneLabel(zone), route.geometry(), zone.getId(), selectedMethod, charge, zone.getFreeDeliveryAbove(), freeDeliveryApplied, zone.getMinimumOrder(), zone.getEstimatedDeliveryMin(), zone.getEstimatedDeliveryMax(), pickupAvailable, availableMethods, methodAvailable ? "Delivery available" : "Selected delivery method is unavailable for this address");
+  }
+
+  private BigDecimal straightLineDistanceKm(BigDecimal storeLatitude, BigDecimal storeLongitude, BigDecimal customerLatitude, BigDecimal customerLongitude) {
+    double lat1 = Math.toRadians(storeLatitude.doubleValue()), lat2 = Math.toRadians(customerLatitude.doubleValue());
+    double dLat = lat2 - lat1, dLon = Math.toRadians(customerLongitude.doubleValue() - storeLongitude.doubleValue());
+    double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+      + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return BigDecimal.valueOf(6371.0088 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  }
+
+  private DeliveryQuoteResponse outsideDeliveryRadius(Store store, BigDecimal customerLatitude, BigDecimal customerLongitude,
+      OpenRouteServiceClient.RouteResult route, String deliveryMethod, boolean pickupAvailable) {
+    List<StoreDeliveryMethodResponse> pickupMethods = methods.findByStoreIdOrderByDeliveryTypeAsc(store.getId()).stream()
+      .filter(StoreDeliveryMethod::isEnabled).filter(method -> isPickup(method.getDeliveryType()))
+      .map(StoreDeliveryMethodResponse::from).toList();
+    String message = pickupAvailable ? "Outside delivery area. Store pickup is available." : "Outside delivery area";
+    return new DeliveryQuoteResponse(store.getId(), store.getLatitude(), store.getLongitude(), customerLatitude, customerLongitude,
+      false, route.distanceKm(), route.distanceMeters(), route.durationSeconds(), route.durationMinutes(), null, route.geometry(),
+      null, normalizeMethod(deliveryMethod), BigDecimal.ZERO, null, false, null, null, null, pickupAvailable, pickupMethods, message);
+  }
+
+  private DeliveryQuoteResponse storeRadiusQuote(Store store, BigDecimal customerLatitude, BigDecimal customerLongitude,
+      OpenRouteServiceClient.RouteResult route, BigDecimal orderTotal, String requestedMethod, boolean pickupAvailable) {
+    List<StoreDeliveryMethodResponse> available = java.util.Arrays.stream(store.getDeliveryModes() == null ? new String[0] : store.getDeliveryModes().split(","))
+      .map(String::trim).filter(value -> !value.isBlank()).filter(value -> !isPickup(value))
+      .map(value -> new StoreDeliveryMethodResponse(null, store.getId(), null, value, true, store.getDeliveryCharge(),
+          store.getDeliveryEtaMinutes() == null ? null : store.getDeliveryEtaMinutes() + " min", null, null, null, null)).toList();
+    String requested = requestedMethod == null || requestedMethod.isBlank() ? null : normalizeMethod(requestedMethod);
+    StoreDeliveryMethodResponse method = available.stream().filter(item -> sameMethod(item.deliveryType(), requested)).findFirst()
+      .orElseGet(() -> available.stream().findFirst().orElse(null));
+    String selected = method == null ? null : method.deliveryType();
+    BigDecimal charge = method == null || method.deliveryCharge() == null ? (store.getDeliveryCharge() == null ? BigDecimal.ZERO : store.getDeliveryCharge()) : method.deliveryCharge();
+    BigDecimal freeAbove = store.getFreeDeliveryAbove();
+    boolean free = orderTotal != null && freeAbove != null && orderTotal.compareTo(freeAbove) >= 0;
+    if (free) charge = BigDecimal.ZERO;
+    boolean availableForDelivery = method != null;
+    String radius = store.getDeliveryRadiusKm().stripTrailingZeros().toPlainString();
+    return new DeliveryQuoteResponse(store.getId(), store.getLatitude(), store.getLongitude(), customerLatitude, customerLongitude,
+      availableForDelivery, route.distanceKm(), route.distanceMeters(), route.durationSeconds(), route.durationMinutes(),
+      "Store radius " + radius + " KM", route.geometry(), null, selected, charge, freeAbove, free, null,
+      store.getDeliveryEtaMinutes(), store.getDeliveryEtaMinutes(), pickupAvailable, available,
+      availableForDelivery ? "Delivery available within store radius" : "No delivery method is configured for this store");
+  }
+
+  @Transactional(readOnly = true)
+  public DeliveryZoneLocationResponse getStoreLocation(String storeId) {
+    Store store = requireStore(storeId);
+    List<String> locations = zones.findByStoreIdOrderByMinRadiusKmAsc(storeId).stream().map(StoreDeliveryZone::getLocationId)
+      .filter(java.util.Objects::nonNull).map(String::trim).filter(value -> !value.isBlank()).distinct().toList();
+    if (locations.isEmpty()) locations = zones.findMappedLocationIdsForStoreRegion(store.getLocation()).stream()
+      .filter(java.util.Objects::nonNull).map(String::trim).filter(value -> !value.isBlank()).distinct().toList();
+    if (locations.size() == 1) return new DeliveryZoneLocationResponse(null, storeId, locations.getFirst());
+    if (locations.isEmpty() && store.getLocation() != null && !store.getLocation().isBlank()) {
+      return new DeliveryZoneLocationResponse(null, storeId, store.getLocation().trim());
+    }
+    throw new IllegalArgumentException("Store delivery location mapping is missing or ambiguous.");
   }
 
   private String resolveZoneLocation(StoreDeliveryZone zone) {
@@ -153,8 +218,9 @@ public class StoreDeliveryService {
 
   private String selectedMethod(String requestedMethod, List<StoreDeliveryMethodResponse> availableMethods) {
     String normalized = normalizeMethod(requestedMethod);
-    if (normalized != null) return normalized;
-    return availableMethods.stream().findFirst().map(StoreDeliveryMethodResponse::deliveryType).orElse(null);
+    if (normalized != null && availableMethods.stream().anyMatch(method -> method.enabled() && sameMethod(method.deliveryType(), normalized))) return normalized;
+    return availableMethods.stream().filter(StoreDeliveryMethodResponse::enabled).filter(method -> !isPickup(method.deliveryType()))
+      .findFirst().map(StoreDeliveryMethodResponse::deliveryType).orElse(null);
   }
 
   private String normalizeMethod(String method) {

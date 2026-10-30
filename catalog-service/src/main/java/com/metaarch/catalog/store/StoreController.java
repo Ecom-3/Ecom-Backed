@@ -55,6 +55,10 @@ public class StoreController {
   @org.springframework.security.access.prepost.PreAuthorize("@catalogAccess.canReadDeliveryZone(authentication, #zoneId)")
   DeliveryZoneLocationResponse deliveryZoneLocation(@PathVariable Long zoneId) { return deliveryService.getZoneLocation(zoneId); }
 
+  @GetMapping("/{id}/delivery-location")
+  @org.springframework.security.access.prepost.PreAuthorize("@catalogAccess.canReadStore(authentication, #id)")
+  DeliveryZoneLocationResponse storeDeliveryLocation(@PathVariable String id) { return deliveryService.getStoreLocation(id); }
+
   @PostMapping("/{id}/delivery-zones")
   @org.springframework.security.access.prepost.PreAuthorize("@catalogAccess.canManageStore(authentication, #id)")
   ResponseEntity<StoreDeliveryZoneResponse> createDeliveryZone(@PathVariable String id, @Valid @RequestBody StoreDeliveryZoneRequest request) {
